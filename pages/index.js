@@ -1,115 +1,356 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+// pages/index.js
+import Link from "next/link";
+import { useEffect, useState, useRef } from "react";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+/* ===== شريط الإعلانات (بانر عريض احترافي بدون تواريخ) ===== */
+function AnnouncementsBar() {
+  const [items, setItems] = useState([]);
+  const [collapsed, setCollapsed] = useState(false);
+  const [i, setI] = useState(0); // المؤشر الحالي
+  const hoverRef = useRef(false);
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  // جلب الإعلانات العامة
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/announcements");
+        const data = await r.json();
+        if (mounted && r.ok && data.ok) setItems(data.items || []);
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // تدوير تلقائي كل 6 ثوانٍ (إن وُجد أكثر من إعلان)
+  useEffect(() => {
+    if (items.length <= 1) return;
+    const id = setInterval(() => {
+      if (!hoverRef.current) {
+        setI((x) => (x + 1) % items.length);
+      }
+    }, 6000);
+    return () => clearInterval(id);
+  }, [items.length]);
+
+  if (collapsed || items.length === 0) return null;
+
+  const current = items[i];
+  const shortBody =
+    current.body.length > 170 ? current.body.slice(0, 170) + "…" : current.body;
+
+  const goPrev = () => setI((x) => (x - 1 + items.length) % items.length);
+  const goNext = () => setI((x) => (x + 1) % items.length);
+
+  return (
+    <section
+      dir="rtl"
+      className="relative overflow-hidden"
+      onMouseEnter={() => (hoverRef.current = true)}
+      onMouseLeave={() => (hoverRef.current = false)}
+    >
+      <div className="bg-gradient-to-l from-green-700 to-emerald-600 text-white">
+        <div className="max-w-7xl mx-auto px-6 py-5">
+          <div className="flex items-start md:items-center justify-between gap-4">
+            {/* النص */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-yellow-300" />
+                <span className="text-sm font-semibold opacity-90">إعلان هام</span>
+              </div>
+              <h3 className="text-xl md:text-2xl font-extrabold mb-1">
+                {current.title}
+              </h3>
+              <p className="text-white/90 text-sm md:text-base leading-7">
+                {shortBody}
+              </p>
+
+              {items.length > 1 && (
+                <div className="mt-3 flex gap-2">
+                  {items.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setI(idx)}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === i ? "w-5 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
+                      }`}
+                      aria-label={`انتقال إلى إعلان ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* أزرار التحكم + إخفاء */}
+            <div className="flex items-center gap-2 shrink-0">
+              {items.length > 1 && (
+                <>
+                  <button
+                    onClick={goPrev}
+                    className="hidden md:inline-flex px-3 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15 transition"
+                    aria-label="السابق"
+                  >
+                    ◀
+                  </button>
+                  <button
+                    onClick={goNext}
+                    className="hidden md:inline-flex px-3 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg白/15 transition"
+                    aria-label="التالي"
+                  >
+                    ▶
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setCollapsed(true)}
+                className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15 transition"
+                aria-label="إخفاء الشريط"
+                title="إخفاء"
+              >
+                إخفاء ×
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Home() {
   return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20`}
-    >
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              pages/index.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div dir="rtl" className="bg-gray-50">
+      {/* ✅ Hero Section (خلفية كاملة) */}
+      <section
+        className="relative text-white"
+        style={{
+          backgroundImage: "url('/images/fitness-hero.jpeg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        {/* طبقة تغميق خفيفة لتحسين تباين النص */}
+        <div className="bg-black/50">
+          <div className="max-w-7xl mx-auto px-6 py-24 md:py-32 flex items-center">
+            {/* النصوص */}
+            <div className="w-full text-center md:text-right">
+              <h1 className="text-4xl md:text-6xl font-extrabold leading-tight mb-6">
+                خطط لياقتك وصحتك <br />
+                <span className="text-yellow-300">مع مدربك الذكي</span>
+              </h1>
+              <p className="text-lg md:text-xl text-green-100 mb-8">
+                احصل على خطة غذائية وتمارين مخصصة لهدفك،
+                كل ذلك في مكان واحد وبواجهة احترافية وسهلة الاستخدام.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                <Link
+                  href="/register"
+                  className="px-8 py-4 bg-yellow-400 text-green-900 font-semibold rounded-lg shadow hover:bg-yellow-300 transition"
+                >
+                  ابدأ الآن 
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+      </section>
+
+      {/* ✅ شريط الإعلانات */}
+      <AnnouncementsBar />
+
+      {/* ✅ قسم الميزات السريع */}
+      <section className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="bg-white rounded-xl shadow p-6 text-center">
+          <h3 className="text-xl font-bold text-green-700 mb-3">خطط غذائية</h3>
+          <p className="text-gray-600">وجبات محسوبة بدقة حسب وزنك وهدفك.</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-6 text-center">
+          <h3 className="text-xl font-bold text-green-700 mb-3">تمارين مخصصة</h3>
+          <p className="text-gray-600">تمارين تناسب مستوى لياقتك ونشاطك.</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-6 text-center">
+          <h3 className="text-xl font-bold text-green-700 mb-3">لوحة تحكم سهلة</h3>
+          <p className="text-gray-600">واجهة واضحة لمتابعة تقدمك اليومي.</p>
+        </div>
+      </section>
+
+      {/* ✅ قسم كيف يعمل الموقع */}
+      <section className="bg-white py-20">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <h2 className="text-3xl font-bold text-green-700 mb-12">كيف يعمل الموقع؟</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-green-50 p-6 rounded-xl shadow">
+              <h3 className="text-xl font-bold text-green-800 mb-3">١. سجل حسابك</h3>
+              <p className="text-gray-600">
+                أنشئ حسابك بسهولة وابدأ في إدخال بياناتك الأساسية مثل الوزن والطول والهدف.
+              </p>
+            </div>
+            <div className="bg-green-50 p-6 rounded-xl shadow">
+              <h3 className="text-xl font-bold text-green-800 mb-3">٢. حدد هدفك</h3>
+              <p className="text-gray-600">
+                اختر هدفك: نزول وزن، زيادة وزن أو الحفاظ على وزنك الحالي.
+              </p>
+            </div>
+            <div className="bg-green-50 p-6 rounded-xl shadow">
+              <h3 className="text-xl font-bold text-green-800 mb-3">٣. استلم خطتك</h3>
+              <p className="text-gray-600">
+                استلم خطة غذائية وتمارين مخصصة لك مباشرة عبر لوحة التحكم الذكية.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ قسم توضيحي عن النظام الغذائي */}
+      <section className="bg-gray-50 py-20">
+        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          {/* صورة */}
+          <div>
+            <img
+              src="/images/meal-plan.jpeg"
+              alt="الخطة الغذائية"
+              className="rounded-xl shadow-lg"
+            />
+          </div>
+          {/* النص */}
+          <div className="text-right">
+            <h2 className="text-3xl font-bold text-green-700 mb-4">
+              خطط غذائية مخصصة لك
+            </h2>
+            <p className="text-gray-600 text-lg leading-relaxed">
+              خوارزمية ذكية تحسب سعراتك واحتياجك من البروتين والكربوهيدرات
+              والدهون، ثم تولد لك خطة وجبات سهلة التحضير.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ قسم توضيحي عن التمارين */}
+      <section className="bg-white py-20">
+        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          {/* النص */}
+          <div className="text-right">
+            <h2 className="text-3xl font-bold text-green-700 mb-4">
+              تمارين موجهة بالفيديو
+            </h2>
+            <p className="text-gray-600 text-lg leading-relaxed">
+              تابع تمارينك اليومية عبر فيديوهات احترافية توضح لك
+              الحركات بالخطوات. سواء كنت مبتدئ أو محترف، الخطة تتكيف معك.
+            </p>
+          </div>
+          {/* صورة */}
+          <div>
+            <img
+              src="/images/workout-plan.jpeg"
+              alt="تمارين"
+              className="rounded-xl shadow-lg"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ قسم سهولة الاستخدام */}
+      <section className="bg-gray-50 py-20">
+        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          {/* صورة */}
+          <div>
+            <img
+              src="/images/dashboard.jpeg"
+              alt="لوحة التحكم"
+              className="rounded-xl shadow-lg"
+            />
+          </div>
+          {/* النص */}
+          <div className="text-right">
+            <h2 className="text-3xl font-bold text-green-700 mb-4">
+              لوحة تحكم سهلة وأنيقة
+            </h2>
+            <p className="text-gray-600 text-lg leading-relaxed">
+              من خلال لوحة التحكم يمكنك متابعة تقدمك، وزنّك، ومعدل
+              الالتزام بالخطة بسهولة وواجهة عصرية.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ قسم دعوة لاتخاذ إجراء (CTA) */}
+      <section className="bg-green-700 text-white">
+        <div className="max-w-7xl mx-auto px-6 py-16 md:py-20 text-center md:text-right">
+          <h2 className="text-3xl md:text-4xl font-extrabold mb-4">
+            جاهز تبدأ رحلتك؟
+          </h2>
+          <p className="text-green-100 text-lg md:text-xl mb-8 max-w-2xl mx-auto md:mx-0">
+            سجّل حسابك الآن وأنشئ خطتك الذكية خلال دقائق. مصممة حسب وزنك، طولك، نشاطك وهدفك.
+          </p>
+          <div className="flex gap-4 justify-center md:justify-start">
+            <Link
+              href="/register"
+              className="px-8 py-4 bg-yellow-400 text-green-900 font-semibold rounded-lg shadow hover:bg-yellow-300 transition"
+            >
+              ابدأ الآن
+            </Link>
+            
+          </div>
+        </div>
+      </section>
+
+      {/* ✅ فوتر بسيط ومرتب */}
+      <footer className="bg-white border-t">
+        <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="space-y-2 text-right">
+            <h3 className="text-lg font-bold text-green-700">عن الموقع</h3>
+            <p className="text-gray-600">
+              منصة ذكية لتوليد الخطط الغذائية والتمارين وفق بياناتك وهدفك، بواجهة عربية سهلة وأنيقة.
+            </p>
+          </div>
+          <div className="space-y-2 text-right">
+            <h3 className="text-lg font-bold text-green-700">روابط سريعة</h3>
+            <ul className="space-y-2 text-gray-600">
+              <li><Link href="/smart-plan" className="hover:text-green-700">الخطة الذكية
+              </Link></li>
+              <li><Link href="/login" className="hover:text-green-700">تسجيل الدخول
+              </Link></li>
+              <li><Link href="/register" className="hover:text-green-700">إنشاء حساب
+              </Link></li>
+            </ul>
+          </div>
+          <div className="space-y-2 text-right">
+           <h3 className="text-lg font-bold text-green-700">تواصل</h3>
+           <ul className="space-y-2 text-gray-600">
+           <li>
+           <a
+             href="mailto:Forktcll@gmail.com?subject=%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1"
+            className="hover:text-green-700"
+           >
+           بريد: Forktcll@gmail.com
+          </a>
+          </li>
+          <li>
+          <a
+        href="https://wa.me/966538283845?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:text-green-700"
+      >
+        واتساب: 0538283845
+      </a>
+    </li>
+    <li>
+      
+    </li>
+  </ul>
+</div>
+        </div>
+        <div className="border-t text-center text-sm text-gray-500 py-4 space-x-2 space-x-reverse" dir="rtl">
+  <span>© {new Date().getFullYear()} جميع الحقوق محفوظة لـ FitLife</span>
+  <span>•</span>
+  <Link href="/privacy" className="text-green-700 hover:underline">سياسة الخصوصية
+  </Link>
+  <span>•</span>
+  <Link href="/terms" className="text-green-700 hover:underline">الشروط والأحكام
+  </Link>
+</div>
+    </footer>
+  </div>
+);
 }

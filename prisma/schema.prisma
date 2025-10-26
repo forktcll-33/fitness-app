@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int     @id @default(autoincrement())
+  name         String
+  email        String  @unique
+  passwordHash String
+  isSubscribed Boolean @default(false)
+  role         String  @default("user")
+
+  // الحقول الجديدة
+  weight        Int?
+  height        Int?
+  age           Int?
+  gender        String?
+  activityLevel String?
+  goal          String?
+
+  // الخطة المحسوبة
+  plan Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 👇 هذا الحقل هو العكسي لعلاقة PasswordResetToken
+  resetTokens PasswordResetToken[]
+}
+
+model Announcement {
+  id        Int       @id @default(autoincrement())
+  title     String
+  body      String
+  isActive  Boolean   @default(true)
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
