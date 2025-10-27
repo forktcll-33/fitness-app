@@ -186,16 +186,14 @@ export default async function handler(req, res) {
       <!DOCTYPE html>
       <html lang="ar" dir="rtl">
       <head>
+       <link rel="preconnect" href="https://fonts.googleapis.com">
+       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+       <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
         <meta charset="UTF-8"/>
         <title>خطة التغذية والتمارين</title>
         <style>
-         @font-face{
-          font-family:'Amiri';
-          font-style:normal;
-          font-weight:400;
-          src:url('https://fonts.gstatic.com/s/amiri/v18/J7aRnpd8CGxBHpUrtLMA5qI.woff2') format('woff2');
-           }
-          body { font-family:'Amiri', Arial, Tahoma, sans-serif; color:#111; margin:0; padding:24px; background:#f6f7f8; }
+        
+          body { font-family: 'Noto Naskh Arabic', Arial, Tahoma, sans-serif; color:#111; margin:0; padding:24px; background:#f6f7f8; }
           .header { background:#e7f5ec; padding:16px; border-radius:8px; text-align:center; margin-bottom:16px; }
           .title { margin:0; font-size:22px; color:#157f48; }
           .meta { color:#555; font-size:12px; margin-top:4px; }
