@@ -12,6 +12,30 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Payment config error" });
     }
 
+    // ابني origin آمن: من APP_URL إن كان صالحًا، وإلا من الدومين الفعلي للطلب
+    const envAppUrl = (process.env.APP_URL || "").trim();
+    let appOrigin = "";
+    try {
+      if (envAppUrl) {
+        const u = new URL(envAppUrl);
+        // أجبر https لو كان http
+        if (u.protocol !== "https:") u.protocol = "https:";
+        appOrigin = u.origin; // فقط الـ origin (بدون مسارات)
+      }
+    } catch (_) {
+      // تجاهل، ونحاول من الهيدر
+    }
+    if (!appOrigin) {
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const proto = req.headers["x-forwarded-proto"] || "https";
+      if (host) appOrigin = `${proto}://${host}`;
+    }
+    // إن فشل الكل، نرجع لأبسط قيمة (ما يتوقع تصير على Vercel)
+    if (!appOrigin) appOrigin = "https://example.com";
+
+    const callbackUrl = `${appOrigin}/api/pay/callback`;
+    const returnUrl = `${appOrigin}/pay/success`;
+
     // مدخلات من الواجهة (اختيارية)
     const {
       amount,
@@ -42,18 +66,23 @@ export default async function handler(req, res) {
           if (dbUser.email) customerEmail = dbUser.email;
         }
       }
-    } catch (e) {
+    } catch {
       // تجاهل ونستخدم القيم القادمة من الواجهة/الافتراضية
     }
 
-    // ✅ تعديل بسيط لإصلاح callback_url
-    const rawBase =
-      (process.env.APP_URL ||
-        req.headers.origin ||
-        (req.headers.host ? `https://${req.headers.host}` : "")).trim();
-    const baseUrl = rawBase.replace(/^['"]|['"]$/g, "").replace(/\/+$/, "");
-
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
+
+    const payload = {
+      amount: amountHalala,
+      currency: curr,
+      description: desc,
+      callback_url: callbackUrl,
+      return_url: returnUrl,
+      metadata: {
+        customer_name: customerName,
+        customer_email: customerEmail,
+      },
+    };
 
     const resp = await fetch("https://api.moyasar.com/v1/invoices", {
       method: "POST",
@@ -62,23 +91,16 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({
-        amount: amountHalala,
-        currency: curr,
-        description: desc,
-        callback_url: `${baseUrl}/api/pay/callback`,
-        return_url: `${baseUrl}/pay/success`,
-        metadata: {
-          customer_name: customerName,
-          customer_email: customerEmail,
-        },
-      }),
+      body: JSON.stringify(payload),
     });
 
     const data = await resp.json();
 
     if (!resp.ok) {
-      console.error("Moyasar invoice error:", data);
+      console.error("Moyasar invoice error:", data, {
+        used_callback_url: callbackUrl,
+        used_return_url: returnUrl,
+      });
       return res.status(500).json({ error: data?.message || "Failed to create invoice" });
     }
 
