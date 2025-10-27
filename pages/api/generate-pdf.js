@@ -1,5 +1,9 @@
 //generate-pdf.js
-import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+
+export const config = { runtime: "nodejs" };
+
 import { getUserFromRequest } from "../../middleware/auth";
 import prisma from "../../lib/prisma";
 
@@ -219,11 +223,15 @@ export default async function handler(req, res) {
       </html>
     `;
 
-    const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      defaultViewport: { width: 794, height: 1123, deviceScaleFactor: 1 },
-    });
+    
+// واستبدل الإطلاق بهذا:
+const executablePath = await chromium.executablePath;
+const browser = await puppeteer.launch({
+  args: chromium.args,
+  defaultViewport: chromium.defaultViewport,
+  headless: chromium.headless,
+  executablePath,
+});
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "domcontentloaded" });
     await page.emulateMediaType("screen");

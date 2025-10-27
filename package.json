@@ -11,6 +11,7 @@
   "dependencies": {
     "@prisma/client": "^6.16.2",
     "@radix-ui/react-slot": "^1.2.3",
+    "@sparticuz/chromium": "^141.0.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
@@ -23,6 +24,7 @@
     "pdfkit": "^0.17.2",
     "prisma": "^6.16.2",
     "puppeteer": "^24.23.0",
+    "puppeteer-core": "^24.26.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1"
