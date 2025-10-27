@@ -189,7 +189,13 @@ export default async function handler(req, res) {
         <meta charset="UTF-8"/>
         <title>خطة التغذية والتمارين</title>
         <style>
-          body { font-family: Arial, Tahoma, sans-serif; color:#111; margin:0; padding:24px; background:#f6f7f8; }
+         @font-face{
+          font-family:'Amiri';
+          font-style:normal;
+          font-weight:400;
+          src:url('https://fonts.gstatic.com/s/amiri/v18/J7aRnpd8CGxBHpUrtLMA5qI.woff2') format('woff2');
+           }
+          body { font-family:'Amiri', Arial, Tahoma, sans-serif; color:#111; margin:0; padding:24px; background:#f6f7f8; }
           .header { background:#e7f5ec; padding:16px; border-radius:8px; text-align:center; margin-bottom:16px; }
           .title { margin:0; font-size:22px; color:#157f48; }
           .meta { color:#555; font-size:12px; margin-top:4px; }
@@ -233,12 +239,12 @@ const browser = await puppeteer.launch({
   executablePath,
 });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.setContent(html, { waitUntil: "networkidle0" });
     await page.emulateMediaType("screen");
 
     const pdfBuffer = await page.pdf({
       format: "A4",
-      printBackground: false,
+      printBackground: true,
       preferCSSPageSize: true,
       margin: { top: "12mm", right: "12mm", bottom: "12mm", left: "12mm" },
     });
