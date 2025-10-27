@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       !user.goal;
 
     let redirect = "/dashboard";
-    if (user.role === "admin") {
+    if ((user.role || "").toUpperCase() === "ADMIN") {
       redirect = "/admin";
     } else if (missingData) {
       redirect = "/onboarding";
