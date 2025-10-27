@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     if (!appOrigin) appOrigin = "https://example.com";
 
     const callbackUrl = `${appOrigin}/api/pay/callback`;
-    const returnUrl = `${appOrigin}/pay/success`;
+    const returnUrl = `${appOrigin}/pay/success?invoice_id={id}`;
 
     // مدخلات من الواجهة (اختيارية)
     const {
