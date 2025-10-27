@@ -46,6 +46,13 @@ export default async function handler(req, res) {
       // تجاهل ونستخدم القيم القادمة من الواجهة/الافتراضية
     }
 
+    // ✅ تعديل بسيط لإصلاح callback_url
+    const rawBase =
+      (process.env.APP_URL ||
+        req.headers.origin ||
+        (req.headers.host ? `https://${req.headers.host}` : "")).trim();
+    const baseUrl = rawBase.replace(/^['"]|['"]$/g, "").replace(/\/+$/, "");
+
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
 
     const resp = await fetch("https://api.moyasar.com/v1/invoices", {
@@ -59,8 +66,8 @@ export default async function handler(req, res) {
         amount: amountHalala,
         currency: curr,
         description: desc,
-        callback_url: `${process.env.APP_URL || "http://localhost:3000"}/api/pay/callback`,
-        return_url: `${process.env.APP_URL || "http://localhost:3000"}/pay/success`,
+        callback_url: `${baseUrl}/api/pay/callback`,
+        return_url: `${baseUrl}/pay/success`,
         metadata: {
           customer_name: customerName,
           customer_email: customerEmail,
