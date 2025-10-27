@@ -14,8 +14,7 @@ export default function PaySuccess() {
         router.query.invoiceId ||
         (typeof window !== "undefined" && localStorage.getItem("pay_inv"));
 
-      // ✅ في حال لم يتم العثور على رقم الفاتورة (بعض الحالات في test mode)
-      // نحول المستخدم مباشرة إلى لوحة التحكم بعد 3 ثوانٍ بدل ما يعلق
+      // لا يوجد رقم فاتورة (يحدث أحيانًا في وضع التجربة)
       if (!invId) {
         setMsg("✅ تم الدفع بنجاح! سيتم تحويلك إلى لوحة التحكم...");
         setTimeout(() => router.replace("/dashboard"), 3000);
@@ -23,17 +22,26 @@ export default function PaySuccess() {
       }
 
       try {
+        // ✅ كانت عندك مشكلة backticks هنا
         const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`);
         const data = await res.json();
+
         if (res.ok && data.ok) {
           setMsg("✅ تم الدفع بنجاح! جاري تحويلك للداشبورد...");
+          // لو كنت تخزن رقم الفاتورة محليًا ننظفه
+          try {
+            localStorage.removeItem("pay_inv");
+          } catch {}
+          // توليد الخطة إن لزم
           await fetch("/api/plan/generate", { method: "POST" }).catch(() => {});
           setTimeout(() => router.replace("/dashboard"), 2000);
         } else {
-          setMsg(data.error || "تعذر التحقق من الدفع. يمكنك التواصل مع الدعم.");
+          setMsg(data.error || "تعذر التحقق من الدفع. سيتم تحويلك للوحة التحكم...");
+          setTimeout(() => router.replace("/dashboard"), 3000);
         }
       } catch {
-        setMsg("تعذر التحقق من الدفع.");
+        setMsg("تعذر التحقق من الدفع. سيتم تحويلك للوحة التحكم...");
+        setTimeout(() => router.replace("/dashboard"), 3000);
       }
     };
 
