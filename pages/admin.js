@@ -21,7 +21,7 @@ export async function getServerSideProps({ req }) {
       select: { id: true, email: true, role: true },
     });
 
-    if (!me || me.role !== "admin") {
+    if (!me || me.role.toLowerCase() !== "admin") {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
