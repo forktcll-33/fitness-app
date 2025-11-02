@@ -28,11 +28,7 @@ export default function RefundPolicy() {
             <li>إلغاء قبل التفعيل الفعلي (إن لم يُقدَّم أي محتوى).</li>
           </ul>
   
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">إيقاف التجديد</h2>
-          <p className="text-gray-700 mb-6">
-            يمكن إيقاف التجديد القادم من صفحة الحساب قبل تاريخ الفوترة التالي.
-            الإيقاف لا يشمل استرجاع الفترة الحالية.
-          </p>
+        
   
           <h2 className="text-xl font-semibold text-gray-800 mb-2">التواصل</h2>
           <p className="text-gray-700 mb-6">

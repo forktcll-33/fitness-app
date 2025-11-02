@@ -349,6 +349,7 @@ export default function Home() {
   <span>•</span>
   <Link href="/terms" className="text-green-700 hover:underline">الشروط والأحكام
   </Link>
+  <span>•</span>
   <Link href="/refund-policy" className="text-green-700 hover:underline">
   سياسة الاسترجاع
 </Link>
