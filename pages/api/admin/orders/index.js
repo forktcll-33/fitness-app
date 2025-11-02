@@ -30,8 +30,8 @@ export default async function handler(req, res) {
         ? {
             OR: [
               { invoiceId: { contains: q, mode: "insensitive" } },
-              { user: { email: { contains: q, mode: "insensitive" } } },
-              { user: { name: { contains: q, mode: "insensitive" } } },
+              { user: { is: { email: { contains: q, mode: "insensitive" } } } },
+              { user: { is: { name: { contains: q, mode: "insensitive" } } } },
             ],
           }
         : {}),

@@ -2,127 +2,61 @@
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
-  // ميسر قد يضرب GET أو POST — نقبل الاثنين
-  const invoiceIdFromQuery = req.query?.id || req.query?.invoice_id;
-  let invoiceId = invoiceIdFromQuery;
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
-    if (!secret || !secret.startsWith("sk_")) {
-      console.error("Callback: missing/invalid MOYASAR_SECRET_KEY");
-      return res.status(200).json({ ok: false }); // نرجع 200 عشان ميسر ما يعيد المحاولة بلا نهاية
-    }
+    if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
 
-    // لو وصلتنا Payload من ميسر فيها id، نستخدمه
-    if (!invoiceId && req.method === "POST") {
-      try {
-        const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-        invoiceId = body?.id || body?.invoice_id || body?.data?.id || body?.data?.invoice_id || null;
-      } catch (_) {
-        // تجاهل
-      }
-    }
+    // مويَسَر ترسل body فيه id للفاتورة (وأحيانًا يجي كـ query)
+    const id = req.body?.id || req.query?.id;
+    if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
-    if (!invoiceId) {
-      console.warn("Callback: missing invoice id");
-      return res.status(200).json({ ok: false });
-    }
-
-    // نسحب بيانات الفاتورة من Moyasar للتأكد من الحالة
-    const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
-    const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
-      headers: { Authorization: auth, Accept: "application/json" },
+    // تحقق من الفاتورة من مصدرها باستخدام Secret
+    const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
+      headers: {
+        Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
+        Accept: "application/json",
+      },
     });
-    const inv = await resp.json();
+    const invoice = await resp.json();
 
     if (!resp.ok) {
-      console.error("Callback verify error:", inv);
-      return res.status(200).json({ ok: false });
+      console.error("callback verify error:", invoice);
+      return res.status(400).json({ error: invoice?.message || "تعذر التحقق من الفاتورة" });
     }
 
-    const status = inv?.status || "unknown";
-    const paid = status === "paid";
-    const amount = Number.isFinite(+inv?.amount) ? +inv.amount : undefined;
-    const currency = inv?.currency || "SAR";
-    const customerEmail =
-      inv?.metadata?.customer_email ||
-      inv?.customer?.email ||
-      inv?.data?.customer?.email ||
-      null;
+    const invoiceId = invoice?.id || id;
+    const paid = invoice?.status === "paid";
 
-    // حاول تحديث/إنشاء الطلب الداخلي
-    let order = null;
+    // تحديث الطلب الداخلي
     try {
-      order = await prisma.order.update({
+      await prisma.order.update({
         where: { invoiceId },
         data: {
-          status: paid ? "paid" : status,
-          finalAmount: amount ?? undefined,
-          currency,
+          status: paid ? "paid" : invoice?.status || "unknown",
+          finalAmount: Number.isFinite(+invoice?.amount) ? +invoice.amount : undefined,
+          currency: invoice?.currency || undefined,
         },
       });
-    } catch (_) {
-      // لو ما فيه Order أصلاً (مثلاً ما كان عندنا userId وقت الإنشاء)، نحاول إنشاؤه الآن
-      try {
-        // حاول ربطه بمستخدم عبر الإيميل إن وُجد
-        let userId = null;
-        if (customerEmail) {
-          const u = await prisma.user.findUnique({ where: { email: customerEmail }, select: { id: true } });
-          if (u) userId = u.id;
-        }
-        order = await prisma.order.upsert({
-          where: { invoiceId },
-          update: {
-            status: paid ? "paid" : status,
-            finalAmount: amount ?? undefined,
-            currency,
-          },
-          create: {
-            invoiceId,
-            userId,                // قد يكون null لو ما عرفنا المستخدم
-            amount: amount ?? 1000,
-            finalAmount: amount ?? undefined,
-            currency,
-            status: paid ? "paid" : status,
-            gateway: "moyasar",
-          },
-        });
-      } catch (e2) {
-        console.error("Callback order upsert error:", e2);
-      }
+    } catch (e) {
+      console.warn("callback: order update warn:", e?.message || e);
     }
 
-    // فعّل اشتراك المستخدم إن الطلب مرتبط بمستخدم وكان مدفوع
+    // تفعيل اشتراك المستخدم إن أمكن ربط الطلب به
     if (paid) {
-      try {
-        let userIdToActivate = order?.userId ?? null;
-
-        // لو الطلب ما فيه userId لكن عندنا إيميل — فعّل عبر الإيميل
-        if (!userIdToActivate && customerEmail) {
-          const u = await prisma.user.findUnique({ where: { email: customerEmail }, select: { id: true } });
-          if (u) userIdToActivate = u.id;
-        }
-
-        if (userIdToActivate) {
-          await prisma.user.update({
-            where: { id: Number(userIdToActivate) },
-            data: { isSubscribed: true },
-          });
-        }
-      } catch (e3) {
-        console.error("Callback activate user error:", e3);
+      const order = await prisma.order.findUnique({ where: { invoiceId } });
+      if (order?.userId) {
+        await prisma.user.update({
+          where: { id: order.userId },
+          data: { isSubscribed: true },
+        });
       }
     }
 
-    // دائمًا 200 لميسر
-    return res.status(200).json({
-      ok: true,
-      invoiceId,
-      status,
-    });
+    return res.status(200).json({ ok: true });
   } catch (e) {
-    console.error("Callback fatal:", e);
-    // نرجّع 200 حتى لو صار استثناء—نتجنب تكرار النداءات بكثرة
-    return res.status(200).json({ ok: false });
+    console.error("callback fatal:", e);
+    return res.status(500).json({ error: "Server error" });
   }
 }

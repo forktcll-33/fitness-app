@@ -8,9 +8,9 @@ export default async function handler(req, res) {
 
   const secret = process.env.MOYASAR_SECRET_KEY;
   if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
-  
+
   try {
-    // 1) نجيب حالة الفاتورة من ميسّر
+    // 1) جلب الفاتورة من ميسّر
     const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
       headers: {
         Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
@@ -27,49 +27,72 @@ export default async function handler(req, res) {
     const invoiceId = json?.id || id;
     const status = json?.status || "unknown";
     const paid = status === "paid";
-    const paidAmount = Number.isFinite(+json?.amount) ? +json.amount : undefined;
+    const paidAmount =
+      Number.isFinite(+json?.amount) ? +json.amount
+      : Number.isFinite(+json?.amount_cents) ? +json.amount_cents
+      : undefined;
     const paidCurrency = json?.currency || undefined;
 
-    // 2) حدّث/أنشئ الطلب الداخلي إن وُجد
+    // 2) حاول إيجاد الطلب أو إنشاؤه إن لم يكن موجودًا
     let order = null;
+    order = await prisma.order.findUnique({ where: { invoiceId } }).catch(() => null);
+
+    // نحاول تحديد userId من الكوكي أولاً
+    let userIdFromCookie = null;
     try {
-      order = await prisma.order.update({
-        where: { invoiceId },
-        data: {
-          status: paid ? "paid" : status,
-          amount: paidAmount ?? undefined,
-          currency: paidCurrency ?? undefined,
-        },
-      });
-    } catch (e) {
-      // لو ما لقيناه، حاول نلقاه قراءة بدون تحديث فقط لالتقاط userId
+      const userJwt = getUserFromRequest(req);
+      if (userJwt?.id) userIdFromCookie = Number(userJwt.id);
+    } catch {}
+
+    if (!order) {
+      // أنشئ طلبًا جديدًا (مفيد لو أنشئت الفاتورة قبل إنشاء Order لأي سبب)
       try {
-        order = await prisma.order.findUnique({ where: { invoiceId } });
-      } catch {}
-      if (!order) {
-        console.warn("Order not found for invoice:", invoiceId);
+        order = await prisma.order.create({
+          data: {
+            invoiceId,
+            userId: userIdFromCookie || undefined,
+            amount: paidAmount ?? 0,
+            currency: paidCurrency || "SAR",
+            status: paid ? "paid" : status,
+          },
+        });
+      } catch (e) {
+        console.warn("Order create warn:", e?.message || e);
+        // لو فشل الإنشاء لأي سبب، نحاول على الأقل التحديث لاحقًا
+      }
+    } else {
+      // حدّث الطلب الموجود
+      try {
+        order = await prisma.order.update({
+          where: { invoiceId },
+          data: {
+            status: paid ? "paid" : status,
+            amount: paidAmount ?? undefined,
+            currency: paidCurrency ?? undefined,
+          },
+        });
+      } catch (e) {
+        console.warn("Order update warn:", e?.message || e);
       }
     }
 
-    // 3) نحدد المستخدم المراد تفعيل اشتراكه
-    //    أولوية: الكوكي -> الـ order.userId
-    let userId = null;
-    try {
-      const userJwt = getUserFromRequest(req);
-      if (userJwt?.id) userId = Number(userJwt.id);
-    } catch {}
-    if (!userId && order?.userId) userId = Number(order.userId);
+    // 3) حدد المستخدم الذي سنفعّل له الاشتراك
+    let targetUserId = userIdFromCookie;
+    if (!targetUserId && order?.userId) targetUserId = Number(order.userId);
 
-    // 4) لو مدفوعة، فعّل الاشتراك إن عرفنا المستخدم
+    // 4) إن كانت مدفوعة فعّل الاشتراك
     if (paid) {
-      if (userId) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { isSubscribed: true },
-        });
+      if (targetUserId) {
+        try {
+          await prisma.user.update({
+            where: { id: targetUserId },
+            data: { isSubscribed: true },
+          });
+        } catch (e) {
+          console.warn("Activate subscription warn:", e?.message || e);
+        }
       } else {
-        // ما نكسر التدفق: نرجّع paid مع تنبيه أنه ما عرف المستخدم
-        console.warn("Paid invoice but no userId resolvable:", invoiceId);
+        console.warn("Paid invoice but no resolvable userId:", invoiceId);
       }
 
       return res.status(200).json({
@@ -81,7 +104,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // حالات أخرى (failed/expired/pending)
+    // 5) حالات غير مدفوعة
     return res.status(200).json({
       ok: false,
       status,

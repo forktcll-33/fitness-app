@@ -69,9 +69,9 @@ export default async function handler(req, res) {
     });
     if (!dbUser) return res.status(404).json({ error: "المستخدم غير موجود" });
 
-    // ✅ منع توليد الـ PDF إذا الاشتراك غير مُفعّل
+    // ✅ منع تحميل/توليد الـ PDF بدون اشتراك فعّال (تحقق واحد واضح)
     if (!dbUser.isSubscribed) {
-      return res.status(403).json({ error: "الاشتراك غير مُفعّل" });
+      return res.status(403).json({ error: "يجب أن يكون لديك اشتراك فعّال لتحميل الخطة" });
     }
 
     if (!dbUser.plan) return res.status(404).json({ error: "لم يتم العثور على الخطة" });
