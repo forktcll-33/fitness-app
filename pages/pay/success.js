@@ -9,8 +9,9 @@ export default function PaySuccess() {
 
   useEffect(() => {
     if (!router.isReady) return;
+    let canceled = false; // ✅ يمنع التنفيذ لو خرج المستخدم من الصفحة
 
-    // 1) اجلب رقم الفاتورة من الـ query أو التخزين المحلي
+    // ✅ اجلب رقم الفاتورة من الـ query أو التخزين المحلي
     const q = router.query || {};
     const invId =
       q.id ||
@@ -23,40 +24,48 @@ export default function PaySuccess() {
       try { localStorage.setItem("pay_inv", String(invId)); } catch {}
     }
 
-    // 2) إن لم يوجد رقم فاتورة (يحدث أحيانًا)، حوّل مباشرة
+    // ✅ لو لم نجد رقم فاتورة → نوجه للداشبورد مباشرة
     if (!invId) {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
       router.replace("/dashboard?paid=1");
       return;
     }
 
-    // 3) التحقق المتكرر مع Backoff خفيف
+    // ✅ التحقق المتكرر
     let attempts = 0;
-    const maxAttempts = 6; // ~18 ثانية كحد أقصى
+    const maxAttempts = 6;
+
     const verifyLoop = async () => {
+      if (canceled) return; // ✅ خروج آمن
+
       attempts += 1;
       try {
         const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`, {
           credentials: "include",
           headers: { Accept: "application/json" },
         });
+
         const data = await res.json().catch(() => ({}));
 
+        // ✅ تم الدفع فعلاً
         if (res.ok && data?.ok && data?.status === "paid") {
+          if (canceled) return;
+
           setMsg("تم الدفع وتفعيل الاشتراك ✅ سيتم تحويلك الآن…");
           try { localStorage.removeItem("pay_inv"); } catch {}
-          // توليد الخطة (لا يوقف التحويل لو فشل)
+
+          // محاولة توليد الخطة (لا يؤثر)
           fetch("/api/plan/generate", { method: "POST", credentials: "include" }).catch(() => {});
+
+          // ✅ تحويل مؤكد
           router.replace("/dashboard?paid=1");
           return;
         }
-      } catch {
-        // تجاهل وأعد المحاولة
-      }
+      } catch {}
 
+      // إعادة محاولة
       if (attempts < maxAttempts) {
-        const delay = 1000 + attempts * 500; // 1.0s, 1.5s, 2.0s…
-        setTimeout(verifyLoop, delay);
+        setTimeout(verifyLoop, 1000 + attempts * 500);
       } else {
         setMsg("تم الدفع. سيتم تحويلك الآن…");
         router.replace("/dashboard");
@@ -65,7 +74,13 @@ export default function PaySuccess() {
 
     setMsg("جاري تأكيد الدفع…");
     verifyLoop();
-  }, [router.isReady]); // مهم: لا تعتمد على router كله لتجنب إعادة التشغيل
+
+    // ✅ cleanup
+    return () => {
+      canceled = true;
+    };
+
+  }, [router.isReady]); // لا تعتمد على router كامل حتى لا يعيد تشغيل effect
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-2 px-4" dir="rtl">

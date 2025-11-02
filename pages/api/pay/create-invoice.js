@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret || !secret.startsWith("sk_")) {
-      console.error("Moyasar secret key is missing or not an sk_ key");
+      console.error("Moyasar secret key is missing or invalid");
       return res.status(500).json({ error: "Payment config error" });
     }
 
@@ -22,6 +22,7 @@ export default async function handler(req, res) {
         appOrigin = u.origin;
       }
     } catch {}
+
     if (!appOrigin) {
       const host = req.headers["x-forwarded-host"] || req.headers.host;
       const proto = req.headers["x-forwarded-proto"] || "https";
@@ -52,37 +53,35 @@ export default async function handler(req, res) {
           where: { id: userId },
           select: { name: true, email: true },
         });
-        if (dbUser) {
-          if (dbUser.name) customerName = dbUser.name;
-          if (dbUser.email) customerEmail = dbUser.email;
-        }
+
+        if (dbUser?.name) customerName = dbUser.name;
+        if (dbUser?.email) customerEmail = dbUser.email;
       }
     } catch {}
 
-    // ✅ خصم فعّال من الإعلانات (إن وجد)
-let appliedDiscount = { type: null, value: 0, note: null };
-try {
-  const now = new Date();
-  const promo = await prisma.announcement.findFirst({
-    where: {
-      isActive: true,
-      // startsAt غير قابلة للـ null في الموديل، لذلك نكتفي بـ lte
-      startsAt: { lte: now },
-      // endsAt اختيارية: إما مستقبلية أو null
-      OR: [{ endsAt: { gte: now } }, { endsAt: null }],
-      discountType: { not: null },
-      discountValue: { gt: 0 },
-    },
-    orderBy: { startsAt: "desc" },
-  });
-  if (promo?.discountType && promo?.discountValue > 0) {
-    appliedDiscount.type = promo.discountType; // 'PERCENT' | 'FLAT'
-    appliedDiscount.value = promo.discountValue;
-    appliedDiscount.note = promo.title || null;
-  }
-} catch (e) {
-  console.warn("Promo fetch warning:", e?.message || e);
-}
+    // ✅ خصم فعّال (إن وجد)
+    let appliedDiscount = { type: null, value: 0, note: null };
+    try {
+      const now = new Date();
+      const promo = await prisma.announcement.findFirst({
+        where: {
+          isActive: true,
+          startsAt: { lte: now },
+          OR: [{ endsAt: { gte: now } }, { endsAt: null }],
+          discountType: { not: null },
+          discountValue: { gt: 0 },
+        },
+        orderBy: { startsAt: "desc" },
+      });
+
+      if (promo?.discountType && promo?.discountValue > 0) {
+        appliedDiscount.type = promo.discountType;
+        appliedDiscount.value = promo.discountValue;
+        appliedDiscount.note = promo.title || null;
+      }
+    } catch (e) {
+      console.warn("Promo fetch warning:", e?.message || e);
+    }
 
     // ✅ احسب النهائي بعد الخصم
     let finalHalala = amountHalalaBase;
@@ -94,6 +93,7 @@ try {
 
     // إنشاء فاتورة ميسر
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
+
     const payload = {
       amount: finalHalala,
       currency: curr,
@@ -118,39 +118,33 @@ try {
     });
 
     const data = await resp.json();
-
-    if (!resp.ok) {
-      console.error("Moyasar invoice error:", data, { used_callback_url: callbackUrl, used_return_url: returnUrl });
-      return res.status(500).json({ error: data?.message || "Failed to create invoice" });
-    }
+    if (!resp.ok) return res.status(500).json({ error: data?.message || "Failed to create invoice" });
 
     const invoiceId = data?.id;
     const payUrl = data?.url || data?.payment_url || data?.invoice_url;
-    if (!invoiceId || !payUrl) {
-      console.error("Moyasar response missing invoice id/url:", data);
-      return res.status(500).json({ error: "Invoice created but missing id/url" });
+    if (!invoiceId || !payUrl) return res.status(500).json({ error: "Invoice created but missing id/url" });
+
+    // ✅ إنشاء Order داخلي وحفظ الخصومات
+    if (userId) {
+      await prisma.order.create({
+        data: {
+          invoiceId,
+          userId,
+          amount: amountHalalaBase,
+          finalAmount: finalHalala,
+          currency: curr,
+          status: "pending",
+          gateway: "moyasar",
+          discountType: appliedDiscount.type,
+          discountValue: appliedDiscount.value,
+        },
+      });
     }
 
-    // ✅ إنشاء Order داخلي فقط إذا كان عندنا userId
-    try {
-        if (userId) {
-          await prisma.order.create({
-            data: {
-              invoiceId,
-              userId,
-              amount: finalHalala,   // نحفظ النهائي الذي سيُدفع فعليًا
-              currency: curr,
-              status: "pending",
-            },
-          });
-        }
-      } catch (e) {
-        console.warn("Order create warning:", e?.message || e);
-      }
-  
-      return res.status(200).json({ ok: true, url: payUrl, invoice: data });
-    } catch (err) {
-      console.error("Create invoice fatal error:", err);
-      return res.status(500).json({ error: "Server error" });
-    }
+    return res.status(200).json({ ok: true, url: payUrl, invoice: data });
+
+  } catch (err) {
+    console.error("Create invoice fatal error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
+}
