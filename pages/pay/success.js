@@ -20,30 +20,39 @@ export default function PaySuccess() {
 
       // لا يوجد رقم فاتورة (يحدث أحيانًا في وضع التجربة)
       if (!invId) {
-        setMsg("✅ تم الدفع بنجاح! سيتم تحويلك إلى لوحة التحكم...");
-        setTimeout(() => router.replace("/dashboard"), 3000);
+        setMsg("✅ تم الدفع بنجاح! يتم تحويلك الآن...");
+        router.replace("/dashboard");
         return;
       }
 
       try {
-        const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`);
+        const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`, {
+          credentials: "include", // مهم لإرسال الكوكيز للتوكن
+        });
         const data = await res.json();
 
         if (res.ok && data.ok) {
-          setMsg("✅ تم الدفع بنجاح! جاري تحويلك للداشبورد...");
+          setMsg("✅ تم الدفع وتفعيل الاشتراك! يتم تحويلك الآن...");
           try {
             localStorage.removeItem("pay_inv");
           } catch {}
-          // توليد الخطة إن لزم
-          await fetch("/api/plan/generate", { method: "POST" }).catch(() => {});
-          setTimeout(() => router.replace("/dashboard"), 2000);
+
+          // توليد الخطة إن لزم (بدون تعطيل التحويل لو فشل)
+          try {
+            await fetch("/api/plan/generate", { method: "POST", credentials: "include" });
+          } catch {}
+
+          // تحويل فوري
+          router.replace("/dashboard?paid=1");
+          // فFallback احتياطي لو ما تبدلت الصفحة لأي سبب
+          setTimeout(() => router.replace("/dashboard?paid=1"), 3000);
         } else {
-          setMsg(data.error || "تعذر التحقق من الدفع. سيتم تحويلك للوحة التحكم...");
-          setTimeout(() => router.replace("/dashboard"), 3000);
+          setMsg(data.error || "تم الدفع ولكن لم يتم التفعيل تلقائيًا، سيتم تحويلك...");
+          setTimeout(() => router.replace("/dashboard"), 1500);
         }
       } catch {
-        setMsg("تعذر التحقق من الدفع. سيتم تحويلك للوحة التحكم...");
-        setTimeout(() => router.replace("/dashboard"), 3000);
+        setMsg("تم الدفع ولكن حدث خطأ بسيط. سيتم تحويلك...");
+        setTimeout(() => router.replace("/dashboard"), 1500);
       }
     };
 
