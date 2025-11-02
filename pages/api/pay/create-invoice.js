@@ -60,30 +60,29 @@ export default async function handler(req, res) {
     } catch {}
 
     // ✅ خصم فعّال من الإعلانات (إن وجد)
-    let appliedDiscount = { type: null, value: 0, note: null };
-    try {
-      const now = new Date();
-      const promo = await prisma.announcement.findFirst({
-        where: {
-          isActive: true,
-          AND: [
-            { OR: [{ startsAt: { lte: now } }, { startsAt: null }] },
-            { OR: [{ endsAt: { gte: now } }, { endsAt: null }] },
-          ],
-          // الحقلان أدناه يفترضان أنك أضفتهما في Announcement
-          discountType: { not: null }, // 'PERCENT' | 'FLAT'
-          discountValue: { gt: 0 },
-        },
-        orderBy: { startsAt: "desc" },
-      });
-      if (promo?.discountType && promo?.discountValue > 0) {
-        appliedDiscount.type = promo.discountType; // 'PERCENT' | 'FLAT'
-        appliedDiscount.value = promo.discountValue;
-        appliedDiscount.note = promo.title || null;
-      }
-    } catch (e) {
-      console.warn("Promo fetch warning:", e?.message || e);
-    }
+let appliedDiscount = { type: null, value: 0, note: null };
+try {
+  const now = new Date();
+  const promo = await prisma.announcement.findFirst({
+    where: {
+      isActive: true,
+      // startsAt غير قابلة للـ null في الموديل، لذلك نكتفي بـ lte
+      startsAt: { lte: now },
+      // endsAt اختيارية: إما مستقبلية أو null
+      OR: [{ endsAt: { gte: now } }, { endsAt: null }],
+      discountType: { not: null },
+      discountValue: { gt: 0 },
+    },
+    orderBy: { startsAt: "desc" },
+  });
+  if (promo?.discountType && promo?.discountValue > 0) {
+    appliedDiscount.type = promo.discountType; // 'PERCENT' | 'FLAT'
+    appliedDiscount.value = promo.discountValue;
+    appliedDiscount.note = promo.title || null;
+  }
+} catch (e) {
+  console.warn("Promo fetch warning:", e?.message || e);
+}
 
     // ✅ احسب النهائي بعد الخصم
     let finalHalala = amountHalalaBase;
