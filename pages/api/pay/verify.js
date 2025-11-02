@@ -84,28 +84,47 @@ export default async function handler(req, res) {
     if (!targetUserId && order?.userId) targetUserId = Number(order.userId);
 
     // ✅ تفعيل الاشتراك
-    if (paid && targetUserId) {
+    // ===== عند الدفع =====
+// ===== عند الدفع =====
+if (paid) {
+    if (targetUserId) {
       try {
         await prisma.user.update({
           where: { id: targetUserId },
-          data: { isSubscribed: true },
+          data: {
+            isSubscribed: true,
+            subscriptionAt: new Date(),
+          },
         });
+  
+        // ✅ هنا بالضبط
+        console.log("VERIFY → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId);
+  
       } catch (e) {
         console.warn("Activate subscription warn:", e?.message || e);
       }
     }
-
-    // ✅ رد نهائي
+  
     return res.status(200).json({
-      ok: paid,
-      status,
+      ok: true,
+      status: "paid",
       invoiceId,
       amount: paidAmount,
       currency: paidCurrency,
-      error: paid ? null : "الفاتورة غير مدفوعة",
     });
+  }
+  
+  // ===== غير مدفوعة =====
+  return res.status(200).json({
+    ok: false,
+    status,
+    invoiceId,
+    amount: paidAmount,
+    currency: paidCurrency,
+    error: "الفاتورة غير مدفوعة",
+  });
   } catch (e) {
     console.error("verify exception:", e);
     return res.status(500).json({ error: "خطأ غير متوقع" });
   }
-}
+  }
