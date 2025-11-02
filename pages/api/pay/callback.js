@@ -2,65 +2,67 @@
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
 
-    // ميسر ترسل body فيه id للفاتورة (وأحيانًا يأتي كـ query)
-    const id = req.body?.id || req.query?.id;
+    // --- اجلب الـ id بأي طريقة ممكنة ---
+    let id =
+      req.query?.id ||
+      req.body?.id ||
+      req.body?.invoice_id ||
+      req.body?.invoice?.id ||
+      req.body?.data?.id;
+
+    // لو الجسم جاء نص/فورم جرّب نحلله
+    if (!id && typeof req.body === "string") {
+      try {
+        const parsed = JSON.parse(req.body);
+        id = parsed?.id || parsed?.invoice_id || parsed?.invoice?.id || parsed?.data?.id;
+      } catch {}
+    }
+
     if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
-    // نتحقق من الفاتورة عبر API ميسر باستخدام الـ Secret
+    // --- تحقّق من مويَسَر بالـ Secret ---
     const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
       headers: {
         Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
         Accept: "application/json",
       },
     });
-    const invoice = await resp.json();
-
+    const inv = await resp.json();
     if (!resp.ok) {
-      console.error("callback verify error:", invoice);
-      return res.status(400).json({ error: invoice?.message || "تعذر التحقق من الفاتورة" });
+      console.error("callback verify error:", inv);
+      return res.status(400).json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
     }
 
-    const invoiceId = invoice?.id || id;
-    const status = invoice?.status || "unknown";
-    const paid = status === "paid";
-    const amountHalala = Number.isFinite(+invoice?.amount) ? +invoice.amount : undefined;
-    const currency = invoice?.currency || undefined;
+    const invoiceId = inv?.id || id;
+    const isPaid = inv?.status === "paid";
 
-    // نحدّث الطلب الداخلي (لا ننكسر لو ما وُجد)
+    // --- حدّث الطلب (لو موجود) ---
+    let order = null;
     try {
-      await prisma.order.update({
+      order = await prisma.order.update({
         where: { invoiceId },
         data: {
-          status: paid ? "paid" : status,
-          amount: amountHalala ?? undefined, // نحفظ المبلغ الفعلي المدفوع
-          currency: currency ?? undefined,
+          status: isPaid ? "paid" : inv?.status || "unknown",
+          amount: Number.isFinite(+inv?.amount) ? +inv.amount : undefined,
+          currency: inv?.currency || undefined,
         },
       });
-    } catch (e) {
-      console.warn("callback: order update warn:", e?.message || e);
+    } catch {
+      try { order = await prisma.order.findUnique({ where: { invoiceId } }); } catch {}
     }
 
-    // لو مدفوعة، نحاول تفعيل اشتراك صاحب الطلب (إن عرفناه)
-    if (paid) {
-      try {
-        const order = await prisma.order.findUnique({ where: { invoiceId } });
-        if (order?.userId) {
-          await prisma.user.update({
-            where: { id: order.userId },
-            data: { isSubscribed: true },
-          });
-        }
-      } catch (e) {
-        console.warn("callback: activate user warn:", e?.message || e);
-      }
+    // --- فعّل اشتراك المستخدم لو الحالة Paid ---
+    if (isPaid && order?.userId) {
+      await prisma.user.update({
+        where: { id: Number(order.userId) },
+        data: { isSubscribed: true },
+      });
     }
 
     return res.status(200).json({ ok: true });

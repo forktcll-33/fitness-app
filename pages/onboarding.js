@@ -71,11 +71,16 @@ export default function Onboarding() {
     }
   };
 
-  // ✅ كود الدفع – يمرر الاسم والإيميل للفواتير
-  const handlePay = async () => {
+  // ✅ كود الدفع – يمرر الاسم والإيميل و الـ JWT للسيرفر
+const handlePay = async () => {
+  try {
     const res = await fetch("/api/pay/create-invoice", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",      // 👈 أهم شيء: يرسل الكوكي (JWT)
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({
         amount: 1000, // هللات = 10 ريال
         currency: "SAR",
@@ -85,10 +90,27 @@ export default function Onboarding() {
       }),
     });
 
-    const data = await res.json();
-    if (data.ok) window.location.href = data.url;
-    else alert(data.error || "تعذر إنشاء الفاتورة");
-  };
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok || !data.url) {
+      alert(data.error || "تعذر إنشاء الفاتورة");
+      return;
+    }
+
+    // ✅ خزّن رقم الفاتورة مؤقتًا لاستخدامه بصفحة success
+    try {
+      if (data.invoice?.id) {
+        localStorage.setItem("pay_inv", data.invoice.id);
+      }
+    } catch {}
+
+    // ✅ افتح صفحة الدفع في Moyasar
+    window.location.href = data.url;
+
+  } catch (e) {
+    alert("حدث خطأ في إنشاء الفاتورة");
+  }
+};
 
   // ✅ بعد إدخال البيانات يعرض الملخص وزر الاشتراك
   if (summary) {
