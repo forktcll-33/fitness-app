@@ -66,9 +66,12 @@ export default async function handler(req, res) {
       const promo = await prisma.announcement.findFirst({
         where: {
           isActive: true,
-          OR: [{ startsAt: { lte: now } }, { startsAt: null }],
-          OR: [{ endsAt: { gte: now } }, { endsAt: null }],
-          discountType: { not: null },
+          AND: [
+            { OR: [{ startsAt: { lte: now } }, { startsAt: null }] },
+            { OR: [{ endsAt: { gte: now } }, { endsAt: null }] },
+          ],
+          // الحقلان أدناه يفترضان أنك أضفتهما في Announcement
+          discountType: { not: null }, // 'PERCENT' | 'FLAT'
           discountValue: { gt: 0 },
         },
         orderBy: { startsAt: "desc" },
@@ -122,36 +125,33 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: data?.message || "Failed to create invoice" });
     }
 
-    const invoiceId = data?.id; // <-- مهم
+    const invoiceId = data?.id;
     const payUrl = data?.url || data?.payment_url || data?.invoice_url;
     if (!invoiceId || !payUrl) {
       console.error("Moyasar response missing invoice id/url:", data);
       return res.status(500).json({ error: "Invoice created but missing id/url" });
     }
 
-    // ✅ إنشاء Order داخلي (لو عندنا userId)
+    // ✅ إنشاء Order داخلي فقط إذا كان عندنا userId
     try {
-      await prisma.order.create({
-        data: {
-          invoiceId,
-          userId,
-          amount: amountHalalaBase,        // قبل الخصم
-          finalAmount: finalHalala,        // بعد الخصم
-          currency: curr,
-          status: "pending",
-          gateway: "moyasar",
-          discountType: appliedDiscount.type,
-          discountValue: appliedDiscount.value || 0,
-        },
-      });
-    } catch (e) {
-      // لو مكرر/موجود، تجاهل ولا توقف الدفع
-      console.warn("Order create warning:", e?.message || e);
+        if (userId) {
+          await prisma.order.create({
+            data: {
+              invoiceId,
+              userId,
+              amount: finalHalala,   // نحفظ النهائي الذي سيُدفع فعليًا
+              currency: curr,
+              status: "pending",
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("Order create warning:", e?.message || e);
+      }
+  
+      return res.status(200).json({ ok: true, url: payUrl, invoice: data });
+    } catch (err) {
+      console.error("Create invoice fatal error:", err);
+      return res.status(500).json({ error: "Server error" });
     }
-
-    return res.status(200).json({ ok: true, url: payUrl, invoice: data });
-  } catch (err) {
-    console.error("Create invoice fatal error:", err);
-    return res.status(500).json({ error: "Server error" });
   }
-}

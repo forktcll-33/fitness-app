@@ -1,4 +1,4 @@
-//generate-pdf.js
+// pages/api/generate-pdf.js
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
@@ -65,14 +65,24 @@ export default async function handler(req, res) {
 
     const dbUser = await prisma.user.findUnique({
       where: { id: Number(userJwt.id) },
-      select: { name: true, email: true, gender: true, goal: true, plan: true },
+      select: { name: true, email: true, gender: true, goal: true, plan: true, isSubscribed: true },
     });
     if (!dbUser) return res.status(404).json({ error: "المستخدم غير موجود" });
+
+    // ✅ منع توليد الـ PDF إذا الاشتراك غير مُفعّل
+    if (!dbUser.isSubscribed) {
+      return res.status(403).json({ error: "الاشتراك غير مُفعّل" });
+    }
+
     if (!dbUser.plan) return res.status(404).json({ error: "لم يتم العثور على الخطة" });
 
     let plan = dbUser.plan;
     if (typeof plan === "string") {
-      try { plan = JSON.parse(plan); } catch { return res.status(500).json({ error: "صيغة الخطة غير صالحة" }); }
+      try {
+        plan = JSON.parse(plan);
+      } catch {
+        return res.status(500).json({ error: "صيغة الخطة غير صالحة" });
+      }
     }
 
     const type = (req.query.type || "").toLowerCase(); // meal | training | ""
@@ -133,7 +143,9 @@ export default async function handler(req, res) {
           .map((d) => {
             const list = (d.gymExercises || []).map((ex) => `<li>• ${renderExercise(ex)}</li>`).join("");
             if (!list) return "";
-            const cardio = d.cardio ? `<div class="cardio">الكارديو: ${escapeHtml(d.cardio.type || "")} — ${escapeHtml(String(d.cardio.durationMin || ""))} دقيقة</div>` : "";
+            const cardio = d.cardio
+              ? `<div class="cardio">الكارديو: ${escapeHtml(d.cardio.type || "")} — ${escapeHtml(String(d.cardio.durationMin || ""))} دقيقة</div>`
+              : "";
             return `
               <div class="mb">
                 <h3 class="h3">${escapeHtml(`${d.day || ""}${d.title ? ` - ${d.title}` : ""}`)}</h3>
@@ -148,7 +160,9 @@ export default async function handler(req, res) {
           .map((d) => {
             const list = (d.homeExercises || []).map((ex) => `<li>• ${renderExercise(ex)}</li>`).join("");
             if (!list) return "";
-            const cardio = d.cardio ? `<div class="cardio">الكارديو: ${escapeHtml(d.cardio.type || "")} — ${escapeHtml(String(d.cardio.durationMin || ""))} دقيقة</div>` : "";
+            const cardio = d.cardio
+              ? `<div class="cardio">الكارديو: ${escapeHtml(d.cardio.type || "")} — ${escapeHtml(String(d.cardio.durationMin || ""))} دقيقة</div>`
+              : "";
             return `
               <div class="mb">
                 <h3 class="h3">${escapeHtml(`${d.day || ""}${d.title ? ` - ${d.title}` : ""}`)}</h3>
@@ -192,7 +206,6 @@ export default async function handler(req, res) {
         <meta charset="UTF-8"/>
         <title>خطة التغذية والتمارين</title>
         <style>
-        
           body { font-family: 'Noto Naskh Arabic', Arial, Tahoma, sans-serif; color:#111; margin:0; padding:24px; background:#f6f7f8; }
           .header { background:#e7f5ec; padding:16px; border-radius:8px; text-align:center; margin-bottom:16px; }
           .title { margin:0; font-size:22px; color:#157f48; }
@@ -227,15 +240,15 @@ export default async function handler(req, res) {
       </html>
     `;
 
-    
-// واستبدل الإطلاق بهذا:
-const executablePath = await chromium.executablePath();
-const browser = await puppeteer.launch({
-  args: chromium.args,
-  defaultViewport: chromium.defaultViewport,
-  headless: chromium.headless,
-  executablePath,
-});
+    // Sparticuz Chromium (Vercel-compatible)
+    const executablePath = await chromium.executablePath();
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      headless: chromium.headless,
+      executablePath,
+    });
+
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     await page.emulateMediaType("screen");

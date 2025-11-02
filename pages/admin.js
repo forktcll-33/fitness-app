@@ -40,58 +40,150 @@ export async function getServerSideProps({ req }) {
 function OrdersTab() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/orders");
+      const data = await res.json();
+      if (res.ok && data.ok) setOrders(data.items);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/admin/orders");
-        const data = await res.json();
-        if (res.ok && data.ok) setOrders(data.items);
-      } catch (e) {
-        console.error(e);
-      }
-      setLoading(false);
-    };
     load();
   }, []);
+
+  const copy = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // تنبيه بسيط بدون نافذة
+      console.log("copied:", text);
+    } catch {}
+  };
+
+  const verifyInvoice = async (invoiceId) => {
+    try {
+      setBusyId(invoiceId);
+      const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invoiceId)}`, {
+        credentials: "include",
+      });
+      await res.json().catch(() => ({}));
+      await load(); // حدّث القائمة بعد التحقق
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const statusBadge = (s) => {
+    const base = "px-2 py-1 rounded text-xs font-semibold";
+    if (s === "paid") return <span className={`${base} bg-green-100 text-green-700`}>مدفوع ✅</span>;
+    if (s === "failed") return <span className={`${base} bg-red-100 text-red-700`}>فشل ❌</span>;
+    if (s === "expired") return <span className={`${base} bg-gray-200 text-gray-700`}>منتهي ⌛</span>;
+    return <span className={`${base} bg-yellow-100 text-yellow-700`}>بانتظار الدفع ⏳</span>;
+  };
 
   if (loading) return <p>جاري التحميل...</p>;
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">الطلبات</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">الطلبات</h1>
+        <button
+          onClick={load}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded"
+        >
+          تحديث
+        </button>
+      </div>
       <div className="overflow-x-auto bg-white rounded-lg shadow">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-green-600 text-white">
+              <th className="p-3 text-right">رقم الطلب</th>
               <th className="p-3 text-right">رقم الفاتورة</th>
               <th className="p-3 text-right">المستخدم</th>
               <th className="p-3 text-right">المبلغ</th>
               <th className="p-3 text-right">الحالة</th>
               <th className="p-3 text-right">التاريخ</th>
+              <th className="p-3 text-right">إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 ? (
               <tr>
-                <td className="p-4 text-center text-gray-500" colSpan={5}>
+                <td className="p-4 text-center text-gray-500" colSpan={7}>
                   لا توجد طلبات
                 </td>
               </tr>
             ) : (
-              orders.map((o) => (
-                <tr key={o.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3 font-semibold">{o.invoiceId}</td>
-                  <td className="p-3">
-                    {o.user?.name || "-"} <br /> {o.user?.email}
-                  </td>
-                  <td className="p-3">{(o.amount / 100).toFixed(2)} ريال</td>
-                  <td className="p-3">{o.status === "paid" ? "✅ مدفوع" : "⏳ بانتظار الدفع"}</td>
-                  <td className="p-3 text-sm text-gray-600">
-                    {new Date(o.createdAt).toLocaleString("ar-SA")}
-                  </td>
-                </tr>
-              ))
+              orders.map((o, i) => {
+                const amountHalala = Number.isFinite(+o.finalAmount) ? +o.finalAmount : +o.amount || 0;
+                const amountSar = (amountHalala / 100).toFixed(2);
+                return (
+                  <tr key={o.id} className={`border-b hover:bg-gray-50 ${i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}>
+                    <td className="p-3 font-semibold">#{o.id}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">{o.invoiceId}</span>
+                        <button
+                          onClick={() => copy(o.invoiceId)}
+                          className="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                          title="نسخ"
+                        >
+                          نسخ
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      {o.user?.name || "-"}
+                      <br />
+                      <span className="text-gray-600 text-sm">{o.user?.email}</span>
+                    </td>
+                    <td className="p-3">
+                      {amountSar} {o.currency || "SAR"}
+                      {Number.isFinite(+o.finalAmount) && +o.finalAmount !== +o.amount ? (
+                        <div className="text-xs text-gray-500">
+                          <span className="line-through">{(+o.amount / 100).toFixed(2)}</span> بعد الخصم
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="p-3">{statusBadge(o.status)}</td>
+                    <td className="p-3 text-sm text-gray-600">
+                      {o.createdAt ? new Date(o.createdAt).toLocaleString("ar-SA") : "-"}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => verifyInvoice(o.invoiceId)}
+                          disabled={busyId === o.invoiceId}
+                          className={`px-3 py-1 rounded text-white ${
+                            busyId === o.invoiceId
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }`}
+                          title="التحقق من حالة الفاتورة وتحديث الطلب"
+                        >
+                          {busyId === o.invoiceId ? "جاري..." : "تحقّق"}
+                        </button>
+                        <button
+                          onClick={load}
+                          className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-800"
+                          title="تحديث القائمة"
+                        >
+                          تحديث
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
