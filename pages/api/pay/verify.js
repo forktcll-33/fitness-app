@@ -8,73 +8,80 @@ export default async function handler(req, res) {
 
   const secret = process.env.MOYASAR_SECRET_KEY;
   if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
-
-  const userJwt = getUserFromRequest(req);
-  if (!userJwt) return res.status(401).json({ error: "غير مصرح" });
-
+  
   try {
-    // جلب الفاتورة من ميسر
+    // 1) نجيب حالة الفاتورة من ميسّر
     const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
       headers: {
         Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
         Accept: "application/json",
       },
     });
-    const inv = await resp.json();
+    const json = await resp.json();
 
     if (!resp.ok) {
-      console.error("verify error:", inv);
-      return res.status(400).json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
+      console.error("verify error:", json);
+      return res.status(400).json({ error: json?.message || "تعذر التحقق من الفاتورة" });
     }
 
-    const invoiceId = inv?.id || id;
-    const status = inv?.status || "pending";
-    const amountHalala = Number.isFinite(+inv?.amount) ? +inv.amount : undefined;
-    const currency = inv?.currency || "SAR";
-    const isPaid = status === "paid";
+    const invoiceId = json?.id || id;
+    const status = json?.status || "unknown";
+    const paid = status === "paid";
+    const paidAmount = Number.isFinite(+json?.amount) ? +json.amount : undefined;
+    const paidCurrency = json?.currency || undefined;
 
-    // تحديث/إنشاء الطلب لدينا
+    // 2) حدّث/أنشئ الطلب الداخلي إن وُجد
+    let order = null;
     try {
-      await prisma.order.upsert({
+      order = await prisma.order.update({
         where: { invoiceId },
-        update: {
-          status: isPaid ? "paid" : status,
-          amount: amountHalala ?? undefined, // لا نغيّرها إن ما أرسلها ميسر
-          currency,
-        },
-        create: {
-          invoiceId,
-          userId: Number(userJwt.id),
-          amount: amountHalala ?? 0,
-          currency,
-          status: isPaid ? "paid" : status,
+        data: {
+          status: paid ? "paid" : status,
+          amount: paidAmount ?? undefined,
+          currency: paidCurrency ?? undefined,
         },
       });
     } catch (e) {
-      console.warn("Order upsert warn:", e?.message || e);
+      // لو ما لقيناه، حاول نلقاه قراءة بدون تحديث فقط لالتقاط userId
+      try {
+        order = await prisma.order.findUnique({ where: { invoiceId } });
+      } catch {}
+      if (!order) {
+        console.warn("Order not found for invoice:", invoiceId);
+      }
     }
 
-    // تفعيل اشتراك المستخدم إذا مدفوعة
-    if (isPaid) {
-      try {
+    // 3) نحدد المستخدم المراد تفعيل اشتراكه
+    //    أولوية: الكوكي -> الـ order.userId
+    let userId = null;
+    try {
+      const userJwt = getUserFromRequest(req);
+      if (userJwt?.id) userId = Number(userJwt.id);
+    } catch {}
+    if (!userId && order?.userId) userId = Number(order.userId);
+
+    // 4) لو مدفوعة، فعّل الاشتراك إن عرفنا المستخدم
+    if (paid) {
+      if (userId) {
         await prisma.user.update({
-          where: { id: Number(userJwt.id) },
+          where: { id: userId },
           data: { isSubscribed: true },
         });
-      } catch (e) {
-        console.error("User update error:", e);
+      } else {
+        // ما نكسر التدفق: نرجّع paid مع تنبيه أنه ما عرف المستخدم
+        console.warn("Paid invoice but no userId resolvable:", invoiceId);
       }
 
       return res.status(200).json({
         ok: true,
         status: "paid",
         invoiceId,
-        amount: amountHalala,
-        currency,
+        amount: paidAmount,
+        currency: paidCurrency,
       });
     }
 
-    // ليست مدفوعة
+    // حالات أخرى (failed/expired/pending)
     return res.status(200).json({
       ok: false,
       status,
