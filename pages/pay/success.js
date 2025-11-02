@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 export default function PaySuccess() {
   const router = useRouter();
   const [msg, setMsg] = useState("جاري التحقق من الدفع...");
+  const [invoiceId, setInvoiceId] = useState("");
 
   useEffect(() => {
     const run = async () => {
@@ -14,6 +15,9 @@ export default function PaySuccess() {
         router.query.invoiceId ||
         (typeof window !== "undefined" && localStorage.getItem("pay_inv"));
 
+      // عرض رقم الفاتورة للمستخدم
+      if (invId) setInvoiceId(invId);
+
       // لا يوجد رقم فاتورة (يحدث أحيانًا في وضع التجربة)
       if (!invId) {
         setMsg("✅ تم الدفع بنجاح! سيتم تحويلك إلى لوحة التحكم...");
@@ -22,13 +26,11 @@ export default function PaySuccess() {
       }
 
       try {
-        // ✅ كانت عندك مشكلة backticks هنا
         const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`);
         const data = await res.json();
 
         if (res.ok && data.ok) {
           setMsg("✅ تم الدفع بنجاح! جاري تحويلك للداشبورد...");
-          // لو كنت تخزن رقم الفاتورة محليًا ننظفه
           try {
             localStorage.removeItem("pay_inv");
           } catch {}
@@ -49,8 +51,13 @@ export default function PaySuccess() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center" dir="rtl">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-2 px-4" dir="rtl">
       <p className="text-lg">{msg}</p>
+      {invoiceId ? (
+        <p className="text-sm text-gray-600">
+          رقم الفاتورة: <b dir="ltr">{invoiceId}</b>
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
       headers: {
         Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
+        Accept: "application/json",
       },
     });
     const json = await resp.json();
@@ -25,16 +26,49 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: json?.message || "تعذر التحقق من الفاتورة" });
     }
 
-    if (json.status === "paid") {
-      // فعّل اشتراك المستخدم
+    // قيم مفيدة من ميسر (إن توفرت)
+    const invoiceId = json?.id || id;
+    const status = json?.status || "unknown";
+    const paid = status === "paid";
+
+    // حاول تحديث الطلب الداخلي حسب الحالة
+    try {
+      await prisma.order.update({
+        where: { invoiceId },
+        data: {
+          status: paid ? "paid" : status,                           // "paid" | "failed" | "expired" | ...
+          finalAmount: Number.isFinite(+json?.amount) ? +json.amount : undefined,
+          currency: json?.currency || undefined,
+        },
+      });
+    } catch (e) {
+      // لو الطلب غير موجود (نادرًا)، نتجاهل بدون كسر التدفق
+      console.warn("Order update warn:", e?.message || e);
+    }
+
+    if (paid) {
+      // ✅ فعّل اشتراك المستخدم
       await prisma.user.update({
         where: { id: Number(userJwt.id) },
         data: { isSubscribed: true },
       });
-      return res.status(200).json({ ok: true, status: "paid" });
-    } else {
-      return res.status(200).json({ ok: false, status: json.status, error: "الفاتورة غير مدفوعة" });
+
+      return res.status(200).json({
+        ok: true,
+        status: "paid",
+        invoiceId,
+        amount: json?.amount,
+        currency: json?.currency,
+      });
     }
+
+    // حالات أخرى (مثلاً failed/expired/pending)
+    return res.status(200).json({
+      ok: false,
+      status,
+      invoiceId,
+      error: "الفاتورة غير مدفوعة",
+    });
   } catch (e) {
     console.error("verify exception:", e);
     return res.status(500).json({ error: "خطأ غير متوقع" });

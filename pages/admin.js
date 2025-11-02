@@ -36,8 +36,72 @@ export async function getServerSideProps({ req }) {
   }
 }
 
+/* ============ كومبوننت تبويب الطلبات ============ */
+function OrdersTab() {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("/api/admin/orders");
+        const data = await res.json();
+        if (res.ok && data.ok) setOrders(data.items);
+      } catch (e) {
+        console.error(e);
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  if (loading) return <p>جاري التحميل...</p>;
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">الطلبات</h1>
+      <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-green-600 text-white">
+              <th className="p-3 text-right">رقم الفاتورة</th>
+              <th className="p-3 text-right">المستخدم</th>
+              <th className="p-3 text-right">المبلغ</th>
+              <th className="p-3 text-right">الحالة</th>
+              <th className="p-3 text-right">التاريخ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.length === 0 ? (
+              <tr>
+                <td className="p-4 text-center text-gray-500" colSpan={5}>
+                  لا توجد طلبات
+                </td>
+              </tr>
+            ) : (
+              orders.map((o) => (
+                <tr key={o.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3 font-semibold">{o.invoiceId}</td>
+                  <td className="p-3">
+                    {o.user?.name || "-"} <br /> {o.user?.email}
+                  </td>
+                  <td className="p-3">{(o.amount / 100).toFixed(2)} ريال</td>
+                  <td className="p-3">{o.status === "paid" ? "✅ مدفوع" : "⏳ بانتظار الدفع"}</td>
+                  <td className="p-3 text-sm text-gray-600">
+                    {new Date(o.createdAt).toLocaleString("ar-SA")}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 export default function Admin({ users }) {
-  const [activeTab, setActiveTab] = useState("users"); // users | announcements | settings
+  const [activeTab, setActiveTab] = useState("users"); // users | announcements | orders | settings
   const [userList, setUserList] = useState(users);
 
   // ====== تبويب: المستخدمون ======
@@ -115,45 +179,43 @@ export default function Admin({ users }) {
   };
 
   // استبدل الدالتين في Admin component:
-
-const toggleActive = async (id, current) => {
-  try {
-    const res = await fetch(`/api/admin/announcements/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !current }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.ok) {
-      setAnncs((prev) => prev.map((a) => (a.id === id ? data.item : a)));
-    } else if (res.status === 404) {
-      // لو أحد حذفها قبلك، نظّفها من القائمة بدلاً من الخطأ
-      setAnncs((prev) => prev.filter((a) => a.id !== id));
-    } else {
-      alert(data.message || "تعذر التحديث");
+  const toggleActive = async (id, current) => {
+    try {
+      const res = await fetch(`/api/admin/announcements/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !current }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setAnncs((prev) => prev.map((a) => (a.id === id ? data.item : a)));
+      } else if (res.status === 404) {
+        setAnncs((prev) => prev.filter((a) => a.id !== id));
+      } else {
+        alert(data.message || "تعذر التحديث");
+      }
+    } catch {
+      alert("خطأ غير متوقع");
     }
-  } catch {
-    alert("خطأ غير متوقع");
-  }
-};
+  };
 
-const deleteAnnouncement = async (id) => {
-  if (!confirm("حذف هذا العرض؟")) return;
-  try {
-    const res = await fetch(`/api/admin/announcements/${id}`, { method: "DELETE" });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.ok) {
-      setAnncs((prev) => prev.filter((a) => a.id !== id));
-    } else if (res.status === 404) {
-      // لو كان محذوف أصلاً، نشيله من الواجهة
-      setAnncs((prev) => prev.filter((a) => a.id !== id));
-    } else {
-      alert(data.message || "تعذر الحذف");
+  const deleteAnnouncement = async (id) => {
+    if (!confirm("حذف هذا العرض؟")) return;
+    try {
+      const res = await fetch(`/api/admin/announcements/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setAnncs((prev) => prev.filter((a) => a.id !== id));
+      } else if (res.status === 404) {
+        setAnncs((prev) => prev.filter((a) => a.id !== id));
+      } else {
+        alert(data.message || "تعذر الحذف");
+      }
+    } catch {
+      alert("خطأ غير متوقع");
     }
-  } catch {
-    alert("خطأ غير متوقع");
-  }
-};
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100" dir="rtl">
       {/* Sidebar */}
@@ -168,6 +230,15 @@ const deleteAnnouncement = async (id) => {
           >
             المستخدمون
           </button>
+
+          {/* زر تبويب الطلبات */}
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`block w-full text-right px-3 py-2 rounded ${activeTab === "orders" ? "bg-green-600" : "hover:bg-green-600/60"}`}
+          >
+            الطلبات
+          </button>
+
           <button
             onClick={() => setActiveTab("announcements")}
             className={`block w-full text-right px-3 py-2 rounded ${activeTab === "announcements" ? "bg-green-600" : "hover:bg-green-600/60"}`}
@@ -237,6 +308,9 @@ const deleteAnnouncement = async (id) => {
             </div>
           </>
         )}
+
+        {/* تبويب الطلبات */}
+        {activeTab === "orders" && <OrdersTab />}
 
         {activeTab === "announcements" && (
           <>
