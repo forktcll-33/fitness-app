@@ -3,7 +3,7 @@ import prisma from "../../../lib/prisma";
 
 export const config = {
   api: {
-    bodyParser: false, // ✅ مهم لأن ميسر ترسل body بصيغ مختلفة
+    bodyParser: false, // ميسر قد ترسل JSON أو x-www-form-urlencoded
   },
 };
 
@@ -22,16 +22,24 @@ export default async function handler(req, res) {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
 
-    // ✅ نقرأ الـ body يدوياً لأن ميسر لا ترسله دائماً JSON
+    // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
     const raw = await readBody(req);
     let body = null;
 
+    // جرّب JSON
     try {
       body = JSON.parse(raw);
     } catch {
-      body = raw;
+      // جرّب form-encoded
+      try {
+        const params = new URLSearchParams(raw);
+        body = Object.fromEntries(params.entries());
+      } catch {
+        body = {};
+      }
     }
 
+    // التقط id من أي مكان ممكن
     let id =
       req.query?.id ||
       body?.id ||
@@ -57,30 +65,45 @@ export default async function handler(req, res) {
 
     const invoiceId = inv?.id || id;
     const isPaid = inv?.status === "paid";
-    const amount = Number(inv?.amount) || undefined;
+    const amountCents =
+      Number.isFinite(+inv?.amount) ? +inv.amount :
+      Number.isFinite(+inv?.amount_cents) ? +inv.amount_cents :
+      undefined;
     const currency = inv?.currency || undefined;
+    const metaEmail = inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // ✅ تحديث الطلب داخلياً + حفظ finalAmount و discount مثل create-invoice
+    // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
     let order = null;
     try {
       order = await prisma.order.update({
         where: { invoiceId },
         data: {
           status: isPaid ? "paid" : inv?.status || "unknown",
-          finalAmount: amount,
-          currency,
+          finalAmount: amountCents ?? undefined,
+          currency: currency ?? undefined,
         },
       });
     } catch {
-      order = await prisma.order.findUnique({ where: { invoiceId } });
+      order = await prisma.order.findUnique({ where: { invoiceId } }).catch(() => null);
     }
 
-    // ✅ تفعيل الاشتراك
-    if (isPaid && order?.userId) {
+    // 🔎 حاول ربط المستخدم: أولاً من الطلب، ثم من البريد الموجود في الـ metadata
+    let targetUserId = order?.userId ? Number(order.userId) : undefined;
+    if (!targetUserId && metaEmail) {
+      const u = await prisma.user.findUnique({ where: { email: metaEmail } }).catch(() => null);
+      if (u) targetUserId = u.id;
+    }
+
+    // ✅ فعّل الاشتراك إن كانت مدفوعة
+    if (isPaid && targetUserId) {
       await prisma.user.update({
-        where: { id: Number(order.userId) },
-        data: { isSubscribed: true },
+        where: { id: Number(targetUserId) },
+        data: {
+          isSubscribed: true,
+          subscriptionAt: new Date(),
+        },
       });
+      console.log("CALLBACK → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId);
     }
 
     return res.status(200).json({ ok: true });

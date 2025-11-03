@@ -28,7 +28,6 @@ export default async function handler(req, res) {
     const status = json?.status || "unknown";
     const paid = status === "paid";
 
-    // ✅ المبلغ دائماً يكون بالهللات
     const paidAmount =
       Number.isFinite(+json?.amount) ? +json.amount :
       Number.isFinite(+json?.amount_cents) ? +json.amount_cents :
@@ -36,95 +35,74 @@ export default async function handler(req, res) {
 
     const paidCurrency = json?.currency || undefined;
 
-    // ✅ العثور على الطلب في قاعدة البيانات
-    let order = await prisma.order.findUnique({ where: { invoiceId } }).catch(() => null);
-
-    // نحاول استخراج userId من الكوكيز
+    // ✅ استخراج المستخدم من الكوكي
     let userIdFromCookie = null;
     try {
       const userJwt = getUserFromRequest(req);
       if (userJwt?.id) userIdFromCookie = Number(userJwt.id);
     } catch {}
 
+    // ✅ استخراج البريد من metadata
+    const metaEmail = json?.metadata?.customer_email;
+
+    // ✅ البحث عن الطلب في قاعدة البيانات
+    let order = await prisma.order.findUnique({ where: { invoiceId } }).catch(() => null);
+
     if (!order) {
-      // ✅ إنشاء order إذا لم يوجد
-      try {
-        order = await prisma.order.create({
-          data: {
-            invoiceId,
-            userId: userIdFromCookie || undefined,
-            amount: paidAmount ?? 0,
-            finalAmount: paidAmount ?? 0, // ✅ مهم
-            currency: paidCurrency || "SAR",
-            status: paid ? "paid" : status,
-          },
-        });
-      } catch (e) {
-        console.warn("Order create warn:", e?.message || e);
-      }
+      order = await prisma.order.create({
+        data: {
+          invoiceId,
+          userId: userIdFromCookie || undefined,
+          amount: paidAmount ?? 0,
+          finalAmount: paidAmount ?? 0,
+          currency: paidCurrency || "SAR",
+          status: paid ? "paid" : status,
+        },
+      });
     } else {
-      // ✅ تحديث الطلب
-      try {
-        order = await prisma.order.update({
-          where: { invoiceId },
-          data: {
-            status: paid ? "paid" : status,
-            amount: paidAmount ?? undefined,
-            finalAmount: paidAmount ?? undefined, // ✅ مهم جداً هنا
-            currency: paidCurrency ?? undefined,
-          },
-        });
-      } catch (e) {
-        console.warn("Order update warn:", e?.message || e);
-      }
+      order = await prisma.order.update({
+        where: { invoiceId },
+        data: {
+          status: paid ? "paid" : status,
+          finalAmount: paidAmount ?? undefined,
+          currency: paidCurrency ?? undefined,
+        },
+      });
     }
 
-    // ✅ تحديد المستخدم الذي يتم تفعيل اشتراكه
+    // ✅ تحديد المستخدم الذي سيفعل له الاشتراك
     let targetUserId = userIdFromCookie;
+
     if (!targetUserId && order?.userId) targetUserId = Number(order.userId);
 
-    // ✅ تفعيل الاشتراك
-    // ===== عند الدفع =====
-// ===== عند الدفع =====
-if (paid) {
-    if (targetUserId) {
-      try {
-        await prisma.user.update({
-          where: { id: targetUserId },
-          data: {
-            isSubscribed: true,
-            subscriptionAt: new Date(),
-          },
-        });
-  
-        // ✅ هنا بالضبط
-        console.log("VERIFY → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId);
-  
-      } catch (e) {
-        console.warn("Activate subscription warn:", e?.message || e);
-      }
+    if (!targetUserId && metaEmail) {
+      const u = await prisma.user.findUnique({ where: { email: metaEmail } }).catch(() => null);
+      if (u) targetUserId = u.id;
     }
-  
+
+    // ✅ تفعيل الاشتراك
+    if (paid && targetUserId) {
+      await prisma.user.update({
+        where: { id: targetUserId },
+        data: {
+          isSubscribed: true,
+          subscriptionAt: new Date(),
+        },
+      });
+
+      console.log("VERIFY → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId);
+    }
+
     return res.status(200).json({
-      ok: true,
-      status: "paid",
+      ok: paid,
+      status,
       invoiceId,
       amount: paidAmount,
       currency: paidCurrency,
+      error: paid ? null : "الفاتورة غير مدفوعة",
     });
-  }
-  
-  // ===== غير مدفوعة =====
-  return res.status(200).json({
-    ok: false,
-    status,
-    invoiceId,
-    amount: paidAmount,
-    currency: paidCurrency,
-    error: "الفاتورة غير مدفوعة",
-  });
   } catch (e) {
     console.error("verify exception:", e);
     return res.status(500).json({ error: "خطأ غير متوقع" });
   }
-  }
+}
