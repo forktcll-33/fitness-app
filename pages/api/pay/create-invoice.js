@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     if (!appOrigin) appOrigin = "https://example.com";
 
     const callbackUrl = `${appOrigin}/api/pay/callback`;
-    const returnUrl = `${appOrigin}/pay/success?invoice_id={id}`;
+    const returnUrl = `${appOrigin}/pay/success?id={id}&invoice_id={id}`;
     if (process.env.NODE_ENV === "production") {
         console.log("PAY create-invoice → appOrigin:", appOrigin);
         console.log("PAY create-invoice → callbackUrl:", callbackUrl);

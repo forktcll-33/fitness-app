@@ -1,4 +1,3 @@
-// pages/pay/success.js
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -9,9 +8,11 @@ export default function PaySuccess() {
 
   useEffect(() => {
     if (!router.isReady) return;
-    let canceled = false; // ✅ يمنع التنفيذ لو خرج المستخدم من الصفحة
 
-    // ✅ اجلب رقم الفاتورة من الـ query أو التخزين المحلي
+    let canceled = false;
+    let timerId = null;
+
+    // 1) اجلب رقم الفاتورة من الـ query أو التخزين المحلي
     const q = router.query || {};
     const invId =
       q.id ||
@@ -24,63 +25,63 @@ export default function PaySuccess() {
       try { localStorage.setItem("pay_inv", String(invId)); } catch {}
     }
 
-    // ✅ لو لم نجد رقم فاتورة → نوجه للداشبورد مباشرة
+    // 2) إن لم يوجد رقم فاتورة (يحدث أحيانًا)، حوّل مباشرة
     if (!invId) {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
       router.replace("/dashboard?paid=1");
       return;
     }
 
-    // ✅ التحقق المتكرر
+    // 3) التحقق المتكرر مع Backoff خفيف
     let attempts = 0;
-    const maxAttempts = 6;
+    const maxAttempts = 10;
 
     const verifyLoop = async () => {
-      if (canceled) return; // ✅ خروج آمن
-
+      if (canceled) return;
       attempts += 1;
+
       try {
         const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`, {
           credentials: "include",
           headers: { Accept: "application/json" },
         });
-
         const data = await res.json().catch(() => ({}));
 
-        // ✅ تم الدفع فعلاً
         if (res.ok && data?.ok && data?.status === "paid") {
           if (canceled) return;
-
           setMsg("تم الدفع وتفعيل الاشتراك ✅ سيتم تحويلك الآن…");
           try { localStorage.removeItem("pay_inv"); } catch {}
 
-          // محاولة توليد الخطة (لا يؤثر)
+          // محاولة توليد الخطة (لا توقف التحويل لو فشلت)
           fetch("/api/plan/generate", { method: "POST", credentials: "include" }).catch(() => {});
 
-          // ✅ تحويل مؤكد
           router.replace("/dashboard?paid=1");
           return;
         }
-      } catch {}
+      } catch {
+        // تجاهل وأعد المحاولة
+      }
 
-      // إعادة محاولة
-      if (attempts < maxAttempts) {
-        setTimeout(verifyLoop, 1000 + attempts * 500);
-      } else {
-        setMsg("تم الدفع. سيتم تحويلك الآن…");
-        router.replace("/dashboard");
+      if (!canceled) {
+        if (attempts < maxAttempts) {
+          const delay = 1000 + attempts * 500; // 1.0s, 1.5s, 2.0s …
+          timerId = setTimeout(verifyLoop, delay);
+        } else {
+          setMsg("تم الدفع. سيتم تحويلك الآن…");
+          router.replace("/dashboard?paid=1");
+        }
       }
     };
 
     setMsg("جاري تأكيد الدفع…");
     verifyLoop();
 
-    // ✅ cleanup
+    // تنظيف
     return () => {
       canceled = true;
+      if (timerId) clearTimeout(timerId);
     };
-
-  }, [router.isReady]); // لا تعتمد على router كامل حتى لا يعيد تشغيل effect
+  }, [router.isReady]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-2 px-4" dir="rtl">
