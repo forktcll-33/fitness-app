@@ -32,6 +32,11 @@ export default async function handler(req, res) {
 
     const callbackUrl = `${appOrigin}/api/pay/callback`;
     const returnUrl = `${appOrigin}/pay/success?invoice_id={id}`;
+    if (process.env.NODE_ENV === "production") {
+        console.log("PAY create-invoice → appOrigin:", appOrigin);
+        console.log("PAY create-invoice → callbackUrl:", callbackUrl);
+        console.log("PAY create-invoice → returnUrl:", returnUrl);
+      }
 
     // مدخلات
     const { amount, currency, description, name: nameFromBody, email: emailFromBody } = req.body || {};
@@ -119,6 +124,14 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     if (!resp.ok) return res.status(500).json({ error: data?.message || "Failed to create invoice" });
+    console.log("PAY create-invoice → invoice:", {
+        id: data?.id,
+        status: data?.status,
+        cb: data?.callback_url,
+        ret: data?.return_url,
+        hostSeen: req.headers["x-forwarded-host"] || req.headers.host,
+        protoSeen: req.headers["x-forwarded-proto"] || "https",
+      });
 
     const invoiceId = data?.id;
     const payUrl = data?.url || data?.payment_url || data?.invoice_url;

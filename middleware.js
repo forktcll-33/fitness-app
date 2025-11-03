@@ -1,19 +1,12 @@
-// middleware.js
+// middleware.js (جذر المشروع)
 import { NextResponse } from "next/server";
 
-export const config = {
-  // نقيّد الميدلوير للمسارات المعنية فقط
-  matcher: ["/api/pay/callback", "/api/pay/verify"],
-};
-
+// مرّر كل الطلبات بدون أي تغيير
 export function middleware(req) {
-  const pathname = req.nextUrl.pathname;
-
-  // نسمح لعبور مسارات الدفع (لا نغيّر الطلب، فقط نمرره)
-  if (pathname.startsWith("/api/pay/callback") || pathname.startsWith("/api/pay/verify")) {
-    return NextResponse.next();
-  }
-
-  // الميدلوير لا يغيّر أي شيء لمسارات أخرى
   return NextResponse.next();
 }
+
+// اختيارياً: خلّيه يطبق على كل شيء عدا ملفات الستاتيك
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|images/).*)"],
+};
