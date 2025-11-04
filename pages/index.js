@@ -327,12 +327,12 @@ export default function Home() {
           </li>
           <li>
           <a
-        href="https://wa.me/966538283845?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85"
+        href="https://wa.me/966532157836?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85"
         target="_blank"
         rel="noopener noreferrer"
         className="hover:text-green-700"
       >
-        واتساب: 0538283845
+        واتساب: 0532157836
       </a>
     </li>
     <li>
