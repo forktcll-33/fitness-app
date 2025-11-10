@@ -13,6 +13,7 @@ import {
   Dumbbell,
 } from "lucide-react";
 import DashboardOverview from "../components/DashboardOverview";
+import WeightProgress from "../components/WeightProgress";
 // ✅ جلب بيانات المستخدم
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
@@ -152,10 +153,13 @@ export default function Dashboard({ user }) {
   <div className="space-y-6">
     <h2 className="text-2xl font-bold text-green-600">لوحة التحكم</h2>
 
-    {/* ✅ هنا نحط الـ DashboardOverview */}
+    {/* ودجت متابعة الوزن */}
+    <WeightProgress user={user} />
+
+    {/* نظرة عامة احترافية */}
     <DashboardOverview user={user} plan={plan} />
 
-    {/* ✅ محتوى الإحصائيات السابق يبقى كما هو */}
+    {/* البطاقات القديمة تبقى كما هي */}
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div className="bg-white shadow p-6 rounded-lg">
         <Salad className="w-8 h-8 text-green-500 mb-2" />
@@ -164,11 +168,13 @@ export default function Dashboard({ user }) {
           {plan ? (plan.calories || "-") : "-"} كالوري
         </p>
       </div>
+
       <div className="bg-white shadow p-6 rounded-lg">
         <Dumbbell className="w-8 h-8 text-blue-500 mb-2" />
         <p className="text-gray-600">هدفك</p>
         <p className="text-xl font-bold">{user.goal || "-"}</p>
       </div>
+
       <div className="bg-white shadow p-6 rounded-lg">
         <Download className="w-8 h-8 text-purple-500 mb-2" />
         <p className="text-gray-600">الخطة الغذائية</p>
