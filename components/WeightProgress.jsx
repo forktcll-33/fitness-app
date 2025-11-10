@@ -1,5 +1,6 @@
 // components/WeightProgress.jsx
 import { useEffect, useState } from "react";
+import WeightChart from "./charts/WeightChart";
 
 export default function WeightProgress({ user }) {
   const [data, setData] = useState(null);
@@ -127,45 +128,9 @@ export default function WeightProgress({ user }) {
         ) : null}
       </div>
 
-      {/* ✅ مقارنة هذا الأسبوع بالأسبوع السابق */}
-      {data?.changeKg != null && (
-        <div className="bg-gray-100 rounded-lg p-4 mb-6">
-          <p className="text-gray-700 text-sm">
-            التغيير عن الأسبوع الماضي:
-            <span
-              className={`font-bold ml-2 ${
-                data.changeKg < 0 ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {data.changeKg < 0
-                ? `-${Math.abs(data.changeKg)} كجم ✅`
-                : `+${data.changeKg} كجم`}
-            </span>
-            ({data.changePercent}%)
-          </p>
-        </div>
-      )}
-
-      {/* ✅ رسم بياني بسيط (أعمدة) */}
+      {/* ✅ شارت الوزن الحقيقي (Chart.js) */}
       <div className="mb-6">
-        <div className="flex items-end gap-1 h-24">
-          {list.slice(-8).map((l, i, arr) => {
-            const weights = arr.map((x) => x.weight);
-            const min = Math.min(...weights);
-            const max = Math.max(...weights);
-            const range = Math.max(1, max - min);
-            const h = 20 + ((l.weight - min) / range) * 60;
-            return (
-              <div
-                key={l.id}
-                className="w-5 bg-green-300 hover:bg-green-500 rounded cursor-pointer"
-                style={{ height: `${h}px` }}
-                title={`${new Date(l.date).toLocaleDateString()} - ${l.weight} kg`}
-              />
-            );
-          })}
-        </div>
-        <div className="text-xs text-gray-500 mt-1">آخر القياسات</div>
+        <WeightChart data={data} />
       </div>
 
       {/* ✅ جدول آخر السجلات */}
