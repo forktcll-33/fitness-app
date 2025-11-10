@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import DashboardOverview from "../components/DashboardOverview";
 import WeightProgress from "../components/WeightProgress";
+import WeightChart from "../components/charts/WeightChart";
 // ✅ جلب بيانات المستخدم
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
@@ -152,6 +153,8 @@ export default function Dashboard({ user }) {
       {activeTab === "home" && (
   <div className="space-y-6">
     <h2 className="text-2xl font-bold text-green-600">لوحة التحكم</h2>
+    
+    <WeightChart data={data} />
 
     {/* ودجت متابعة الوزن */}
     <WeightProgress user={user} />

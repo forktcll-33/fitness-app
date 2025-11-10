@@ -1,8 +1,10 @@
+// pages/api/progress/weight/list.js
 import prisma from "../../../../lib/prisma";
 import { getUserFromRequest } from "../../../../middleware/auth";
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const me = getUserFromRequest(req);
@@ -14,7 +16,12 @@ export default async function handler(req, res) {
     const [user, logs] = await Promise.all([
       prisma.user.findUnique({
         where: { id: Number(me.id) },
-        select: { weight: true, startWeight: true, targetWeight: true, startDate: true },
+        select: {
+          weight: true,
+          startWeight: true,
+          targetWeight: true,
+          startDate: true,
+        },
       }),
       prisma.weightLog.findMany({
         where: { userId: Number(me.id), date: { gte: since } },
@@ -23,30 +30,66 @@ export default async function handler(req, res) {
       }),
     ]);
 
-    // تقدير هدف افتراضي لو ما حطّاه المستخدم:
-    let target = user?.targetWeight ?? null;
-    if (target == null && user?.weight) {
-      // إذا هدفه إنقاص الوزن: افترض -10%
-      target = Math.round(user.weight * 0.9 * 10) / 10;
+    // ✅ تحديد الهدف (افتراضي -10% إن لم يُحدد)
+    let targetWeight = user?.targetWeight ?? null;
+    if (targetWeight == null && user?.weight) {
+      targetWeight = Math.round(user.weight * 0.9 * 10) / 10;
     }
 
-    const start = user?.startWeight ?? (logs[0]?.weight ?? user?.weight ?? null);
+    // ✅ الوزن الأول كبداية
+    const startWeight =
+      user?.startWeight ?? (logs[0]?.weight ?? user?.weight ?? null);
 
-    // احسب نسبة الإنجاز (كلما اقترب من الهدف)
+    // ✅ نسبة الإنجاز
     let percent = 0;
-    if (start != null && target != null && logs.length) {
+    if (startWeight != null && targetWeight != null && logs.length) {
       const current = logs[logs.length - 1].weight;
-      const totalDelta = Math.abs(start - target);
-      const doneDelta = Math.abs(start - current);
-      percent = totalDelta > 0 ? Math.min(100, Math.round((doneDelta / totalDelta) * 100)) : 0;
+      const totalDelta = Math.abs(startWeight - targetWeight);
+      const doneDelta = Math.abs(startWeight - current);
+      percent =
+        totalDelta > 0
+          ? Math.min(100, Math.round((doneDelta / totalDelta) * 100))
+          : 0;
     }
+
+    // ✅ توقع بسيط لستة أسابيع قادمة
+    let projected = [];
+    if (logs.length >= 2 && targetWeight != null) {
+      const first = logs[0].weight;
+      const last = logs[logs.length - 1].weight;
+      const weeksPassed = logs.length - 1;
+      const weeklyLoss = (first - last) / Math.max(1, weeksPassed);
+      let current = last;
+      for (let i = 0; i < 6; i++) {
+        current -= weeklyLoss;
+        if (current < targetWeight) current = targetWeight;
+        projected.push(current);
+      }
+    }
+
+    // ✅ الفرق عن آخر قياس سابق
+    let changeKg = null;
+    let changePercent = null;
+    if (logs.length >= 2) {
+      const last = logs[logs.length - 1].weight;
+      const prev = logs[logs.length - 2].weight;
+      changeKg = +(last - prev).toFixed(1);
+      changePercent = +(((last - prev) / prev) * 100).toFixed(1);
+    }
+
+    // ✅ آخر تاريخ تسجيل وزن (لاستخدامه في التنبيه الأسبوعي)
+    const lastEntryDate = logs.length ? logs[logs.length - 1].date : null;
 
     return res.status(200).json({
       ok: true,
-      targetWeight: target,
-      startWeight: start,
-      percent,
       logs,
+      projected,
+      startWeight,
+      targetWeight,
+      percent,
+      changeKg,
+      changePercent,
+      lastEntryDate, // 👈 مهم للتنبيه
     });
   } catch (e) {
     console.error("weight/list error:", e);
