@@ -37,7 +37,20 @@ function renderMealValue(v) {
     const opts = v.options || v.choices || v.variants;
     if (Array.isArray(opts) && opts.length) {
       const optionLines = opts.map((opt, idx) => {
-        const p = opt.protein && `${escapeHtml(opt.protein.name || "")} ${opt.protein.grams ?? ""}غ`;
+        // ✅ تعديل البيض ليظهر بالحبات بدل الغرامات
+let p = "";
+if (opt.protein) {
+  const pname = escapeHtml(opt.protein.name || "");
+  const grams = opt.protein.grams ?? "";
+
+  if (/بيض|Egg/i.test(pname)) {
+    // إذا كان بيض نقسم الغرامات على 60 = عدد الحبات
+    const pieces = Math.round((+grams || 0) / 60);
+    p = `${pname} ${pieces} حبة`;
+  } else {
+    p = `${pname} ${grams}غ`;
+  }
+}
         const c = opt.carb && `${escapeHtml(opt.carb.name || "")} ${opt.carb.grams ?? ""}غ`;
         const f = opt.fat && `${escapeHtml(opt.fat.name || "")} ${opt.fat.grams ?? ""}غ`;
         const pieces = [p, c, f].filter(Boolean).join(" + ");
