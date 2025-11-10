@@ -13,9 +13,13 @@ import {
   ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
   
   export default function WeightChart({ data }) {
-    if (!data?.logs?.length) {
-      return <p className="text-sm text-gray-500">لا يوجد سجل أوزان كافٍ للرسم البياني بعد.</p>;
-    }
+    if (!data?.logs || data.logs.length < 2) {
+        return (
+          <p className="text-sm text-gray-500">
+            تحتاج لإضافة قياسين على الأقل لعرض الرسم البياني 📊
+          </p>
+        );
+      }
   
     const labels = data.logs.map((x) => new Date(x.date).toLocaleDateString("ar-SA"));
     const weights = data.logs.map((x) => x.weight);
