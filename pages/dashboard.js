@@ -81,7 +81,8 @@ export default function Dashboard({ user }) {
   };
 
   const plan = safePlan(user.plan);
-
+  // Hotfix: لمنع كراش السيرفر إذا بقيت إشارات لـ data في JSX
+  const data = null;
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" dir="rtl">
       {/* ✅ الهيدر */}
