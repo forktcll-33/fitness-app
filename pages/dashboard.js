@@ -116,7 +116,19 @@ export default function Dashboard({ user }) {
                 }}
                 className="block w-full text-right px-4 py-2 hover:bg-gray-100"
               >
-                التنزيلات
+                التنزيلات              
+              </button>
+              <button
+               onClick={() => router.push("/dashboard/nutrition")}
+              className="block w-full text-right px-4 py-2 hover:bg-gray-100"
+              >
+                خطة التغذية
+               </button>
+              <button
+                onClick={() => { setActiveTab("nutrition"); setMenuOpen(false); }}
+               className="block w-full text-right px-4 py-2 hover:bg-gray-100"
+>
+               خطة التغذية
               </button>
               <button
                 onClick={() => {
@@ -201,6 +213,7 @@ export default function Dashboard({ user }) {
               </p>
               <div className="flex flex-col gap-3">
                 {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                {/* 
                <a
                 href="/api/generate-pdf?type=meal"
                 target="_blank"
@@ -209,7 +222,7 @@ export default function Dashboard({ user }) {
                  >
                  تحميل الخطة الغذائية PDF
                </a>
-
+                */}
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
                 href="/api/generate-pdf?type=training"
@@ -222,7 +235,7 @@ export default function Dashboard({ user }) {
               </div>
             </div>
           </div>
-        )}
+        )}       
 
         {activeTab === "profile" && (
           <div>
