@@ -139,11 +139,16 @@ export default function NutritionPlan({ plan }) {
 
       {/* ⭐ مودال الاستبدال */}
       {swapFor && (
-        <SwapModal
-          mealKey={swapFor}
-          close={() => setSwapFor(null)}
-        />
-      )}
+       <SwapModal
+       open={true}
+       mealTitle={titles[swapFor] || swapFor}
+       onClose={() => setSwapFor(null)}
+       onSwap={(choice) => {
+         meals[swapFor] = choice;   // ✅ تحديث الوجبة
+         setSwapFor(null);          // ✅ إغلاق المودال
+       }}
+     />
+       )}
     </>
   );
 }
