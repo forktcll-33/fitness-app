@@ -1,5 +1,6 @@
 // components/NutritionPlan.jsx
-import React from "react";
+import React, { useState } from "react";
+import SwapModal from "./SwapModal";
 
 // نفس منطق الـ PDF مع تعديل البيض: يظهر "حبة" بدل الغرامات
 function renderMealValue(v) {
@@ -52,6 +53,9 @@ function renderMealValue(v) {
 }
 
 export default function NutritionPlan({ plan }) {
+
+  const [swapFor, setSwapFor] = useState(null); // ⭐ يحدد أي وجبة تم طلب استبدالها
+
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
     return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
@@ -69,8 +73,27 @@ export default function NutritionPlan({ plan }) {
   const row = (k) =>
     meals[k] == null ? null : (
       <tr key={k}>
-        <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-40">{titles[k] || k}</td>
-        <td className="border p-3">{renderMealValue(meals[k])}</td>
+
+        {/* اسم الوجبة */}
+        <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-40">
+          {titles[k] || k}
+        </td>
+
+        {/* محتوى الوجبة + زر الاستبدال */}
+        <td className="border p-3 flex justify-between items-center">
+
+          {/* المحتوى */}
+          <div>{renderMealValue(meals[k])}</div>
+
+          {/* زر الاستبدال */}
+          <button
+            onClick={() => setSwapFor(k)}
+            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700"
+          >
+            استبدال ↻
+          </button>
+        </td>
+
       </tr>
     );
 
@@ -78,39 +101,49 @@ export default function NutritionPlan({ plan }) {
   const extraRows = Object.keys(meals).filter(k => !seen.has(k)).map(row).filter(Boolean);
 
   return (
-    <section className="bg-white rounded-2xl border p-6 shadow space-y-4">
-      <h2 className="text-xl font-bold text-green-700">خطة الوجبات (داخل الداشبورد)</h2>
+    <>
+      <section className="bg-white rounded-2xl border p-6 shadow space-y-4">
+        <h2 className="text-xl font-bold text-green-700">خطة الوجبات (داخل الداشبورد)</h2>
 
-      {/* ملخص الماكروز */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-gray-500 text-sm">السعرات</div>
-          <div className="text-lg font-bold">{plan?.calories ?? "-"}</div>
+        {/* ملخص الماكروز */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border p-3 text-center">
+            <div className="text-gray-500 text-sm">السعرات</div>
+            <div className="text-lg font-bold">{plan?.calories ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <div className="text-gray-500 text-sm">البروتين (جم)</div>
+            <div className="text-lg font-bold">{plan?.protein ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <div className="text-gray-500 text-sm">الكارب (جم)</div>
+            <div className="text-lg font-bold">{plan?.carbs ?? "-"}</div>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <div className="text-gray-500 text-sm">الدهون (جم)</div>
+            <div className="text-lg font-bold">{plan?.fat ?? "-"}</div>
+          </div>
         </div>
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-gray-500 text-sm">البروتين (جم)</div>
-          <div className="text-lg font-bold">{plan?.protein ?? "-"}</div>
-        </div>
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-gray-500 text-sm">الكارب (جم)</div>
-          <div className="text-lg font-bold">{plan?.carbs ?? "-"}</div>
-        </div>
-        <div className="rounded-lg border p-3 text-center">
-          <div className="text-gray-500 text-sm">الدهون (جم)</div>
-          <div className="text-lg font-bold">{plan?.fat ?? "-"}</div>
-        </div>
-      </div>
 
-      {/* جدول الوجبات */}
-      <table className="w-full border-collapse text-sm">
-        <tbody>
-          {mainRows.length ? mainRows : null}
-          {extraRows.length ? extraRows : null}
-          {!mainRows.length && !extraRows.length ? (
-            <tr><td className="p-3">لا توجد بيانات وجبات</td></tr>
-          ) : null}
-        </tbody>
-      </table>
-    </section>
+        {/* جدول الوجبات */}
+        <table className="w-full border-collapse text-sm">
+          <tbody>
+            {mainRows.length ? mainRows : null}
+            {extraRows.length ? extraRows : null}
+            {!mainRows.length && !extraRows.length ? (
+              <tr><td className="p-3">لا توجد بيانات وجبات</td></tr>
+            ) : null}
+          </tbody>
+        </table>
+      </section>
+
+      {/* ⭐ مودال الاستبدال */}
+      {swapFor && (
+        <SwapModal
+          mealKey={swapFor}
+          close={() => setSwapFor(null)}
+        />
+      )}
+    </>
   );
 }

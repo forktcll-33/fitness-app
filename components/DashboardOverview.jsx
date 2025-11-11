@@ -104,7 +104,7 @@ export default function DashboardOverview({ user: userProp, plan: planProp }) {
               <Dumbbell className="w-5 h-5 text-blue-600" />
               <span className="font-medium text-gray-900">توزيع الماكروز</span>
             </div>
-            <Chip tone="blue">مقترح</Chip>
+            <Chip tone="blue"></Chip>
           </div>
 
           <div className="space-y-3">
@@ -142,6 +142,7 @@ export default function DashboardOverview({ user: userProp, plan: planProp }) {
           </div>
           <div className="grid grid-cols-1 gap-2">
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            {/*
             <a
               href="/api/generate-pdf?type=meal"
               target="_blank"
@@ -151,6 +152,7 @@ export default function DashboardOverview({ user: userProp, plan: planProp }) {
               <span className="text-sm text-gray-800">تحميل الخطة الغذائية PDF</span>
               <Download className="w-4 h-4 text-gray-600" />
             </a>
+            */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/api/generate-pdf?type=training"
