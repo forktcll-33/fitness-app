@@ -1,15 +1,34 @@
 // components/NutritionPlan.jsx
-import React, { useState } from "react";
-import SwapModal from "./SwapModal";
+import React, { useMemo, useState } from "react";
+import SwapDrawer from "./SwapDrawer";
 
 // نفس منطق الـ PDF مع تعديل البيض: يظهر "حبة" بدل الغرامات
-function renderMealValue(v) {
+function renderMealValue(v, override) {
+  // لو فيه Override (استبدال) نعرضه كخيار مخصص أعلى القائمة
+  const customLine = (() => {
+    if (!override) return null;
+    const p = override.protein ? `${override.protein.name} ${override.protein.grams}غ` : null;
+    const c = override.carb ? `${override.carb.name} ${override.carb.grams}غ` : null;
+    const f = override.fat ? `${override.fat.name} ${override.fat.grams}غ` : null;
+    const txt = [p, c, f].filter(Boolean).join(" + ");
+    if (!txt) return null;
+    return <li className="font-medium text-green-700">الخيار المخصص: {txt}</li>;
+  })();
+
   if (v == null) return "-";
-  if (typeof v === "string") return v;
+  if (typeof v === "string") {
+    return (
+      <ul className="list-disc pr-5">
+        {customLine}
+        <li>• {v}</li>
+      </ul>
+    );
+  }
 
   if (Array.isArray(v)) {
     return (
       <ul className="list-disc pr-5">
+        {customLine}
         {v.map((x, i) => <li key={i}>• {String(x)}</li>)}
       </ul>
     );
@@ -20,6 +39,7 @@ function renderMealValue(v) {
     if (Array.isArray(opts) && opts.length) {
       return (
         <ul className="list-disc pr-5">
+          {customLine}
           {opts.map((opt, idx) => {
             // بروتين
             let p = "";
@@ -53,52 +73,65 @@ function renderMealValue(v) {
 }
 
 export default function NutritionPlan({ plan }) {
-
-  const [swapFor, setSwapFor] = useState(null); // ⭐ يحدد أي وجبة تم طلب استبدالها
+  // ✅ لا نعدّل plan نفسه؛ نخزّن الاستبدالات مؤقتًا هنا
+  // مثال البنية: { breakfast: { protein: {...}, carb: {...}, fat: {...} }, ... }
+  const [overrides, setOverrides] = useState({});
+  const [swapFor, setSwapFor] = useState(null);
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
     return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
   }
 
-  const titles = {
+  const titles = useMemo(() => ({
     breakfast: "وجبة 1 - الإفطار",
     lunch: "وجبة 2 - الغداء",
     dinner: "وجبة 3 - العشاء",
     meal4: "وجبة 4 - وجبة خفيفة محسوبة",
-  };
+  }), []);
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
   const row = (k) =>
     meals[k] == null ? null : (
       <tr key={k}>
-
         {/* اسم الوجبة */}
         <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-40">
           {titles[k] || k}
         </td>
 
-        {/* محتوى الوجبة + زر الاستبدال */}
-        <td className="border p-3 flex justify-between items-center">
+        {/* المحتوى + زر الاستبدال */}
+        <td className="border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">{renderMealValue(meals[k], overrides[k])}</div>
+            <button
+              onClick={() => setSwapFor(k)}
+              className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 shrink-0"
+            >
+              استبدال ↻
+            </button>
+          </div>
 
-          {/* المحتوى */}
-          <div>{renderMealValue(meals[k])}</div>
-
-          {/* زر الاستبدال */}
-          <button
-            onClick={() => setSwapFor(k)}
-            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700"
-          >
-            استبدال ↻
-          </button>
+          {/* شارة توضح أن الوجبة معدّلة */}
+          {overrides[k] && (
+            <div className="text-xs text-green-700 mt-2">
+              تم تطبيق استبدال مخصص على هذه الوجبة.
+            </div>
+          )}
         </td>
-
       </tr>
     );
 
   const mainRows = order.map(row).filter(Boolean);
   const extraRows = Object.keys(meals).filter(k => !seen.has(k)).map(row).filter(Boolean);
+
+  const handleConfirmSwap = (payload) => {
+    setOverrides((prev) => ({
+      ...prev,
+      [swapFor]: payload, // نخزن البروتين/الكارب/الدهون المختارة
+    }));
+    setSwapFor(null);
+  };
 
   return (
     <>
@@ -137,18 +170,13 @@ export default function NutritionPlan({ plan }) {
         </table>
       </section>
 
-      {/* ⭐ مودال الاستبدال */}
-      {swapFor && (
-       <SwapModal
-       open={true}
-       mealTitle={titles[swapFor] || swapFor}
-       onClose={() => setSwapFor(null)}
-       onSwap={(choice) => {
-         meals[swapFor] = choice;   // ✅ تحديث الوجبة
-         setSwapFor(null);          // ✅ إغلاق المودال
-       }}
-     />
-       )}
+      {/* Drawer الاستبدال */}
+      <SwapDrawer
+        open={!!swapFor}
+        mealTitle={swapFor ? (titles[swapFor] || swapFor) : ""}
+        onClose={() => setSwapFor(null)}
+        onConfirm={handleConfirmSwap}
+      />
     </>
   );
 }
