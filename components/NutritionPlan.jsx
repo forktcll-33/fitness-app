@@ -1,137 +1,212 @@
 // components/NutritionPlan.jsx
 import React, { useMemo, useState } from "react";
 import SwapDrawer from "./SwapDrawer";
+import { NAME_MAP } from "../data/food-db";
 
-// نفس منطق الـ PDF مع تعديل البيض: يظهر "حبة" بدل الغرامات
-function renderMealValue(v, override) {
-  // لو فيه Override (استبدال) نعرضه كخيار مخصص أعلى القائمة
-  const customLine = (() => {
-    if (!override) return null;
-    const p = override.protein ? `${override.protein.name} ${override.protein.grams}غ` : null;
-    const c = override.carb ? `${override.carb.name} ${override.carb.grams}غ` : null;
-    const f = override.fat ? `${override.fat.name} ${override.fat.grams}غ` : null;
-    const txt = [p, c, f].filter(Boolean).join(" + ");
-    if (!txt) return null;
-    return <li className="font-medium text-green-700">الخيار المخصص: {txt}</li>;
-  })();
+/**
+ * نعرض كل عنصر (بروتين/كارب/دهون) كزر قابل للضغط للاستبدال.
+ * نستخدم NAME_MAP لنحاول ربط الاسم بمفتاح في FOOD_DB حتى يمكن الحساب.
+ */
+function PartChip({ label, gramsText, onSwap }) {
+  return (
+    <button
+      onClick={onSwap}
+      className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs border hover:bg-gray-50"
+      title="استبدال هذا الجزء"
+    >
+      <span className="font-semibold text-gray-700">{label}</span>
+      <span className="text-gray-500">{gramsText}</span>
+      <span className="text-blue-600">↻</span>
+    </button>
+  );
+}
 
-  if (v == null) return "-";
-  if (typeof v === "string") {
-    return (
-      <ul className="list-disc pr-5">
-        {customLine}
-        <li>• {v}</li>
-      </ul>
+// يحوّل (name, grams) إلى نص جميل: البيض يتحوّل إلى "حبة"
+function toPretty(name, grams) {
+  if (/بيض|Egg/i.test(name)) {
+    const pieces = Math.max(1, Math.round((+grams || 0) / 60));
+    return `${pieces} حبة`;
+  }
+  return `${grams}غ`;
+}
+
+function renderOptionsAsChips(opt, onSwapPart) {
+  const chips = [];
+
+  if (opt.protein?.name && (opt.protein.grams ?? null) != null) {
+    chips.push(
+      <PartChip
+        key="p"
+        label={opt.protein.name}
+        gramsText={toPretty(opt.protein.name, opt.protein.grams)}
+        onSwap={() =>
+          onSwapPart({
+            category: "protein",
+            sourceName: opt.protein.name,
+            sourceKey: NAME_MAP[opt.protein.name] || null,
+            sourceGrams: opt.protein.grams,
+          })
+        }
+      />
+    );
+  }
+  if (opt.carb?.name && (opt.carb.grams ?? null) != null) {
+    chips.push(
+      <PartChip
+        key="c"
+        label={opt.carb.name}
+        gramsText={`${opt.carb.grams}غ`}
+        onSwap={() =>
+          onSwapPart({
+            category: "carbs",
+            sourceName: opt.carb.name,
+            sourceKey: NAME_MAP[opt.carb.name] || null,
+            sourceGrams: opt.carb.grams,
+          })
+        }
+      />
+    );
+  }
+  if (opt.fat?.name && (opt.fat.grams ?? null) != null) {
+    chips.push(
+      <PartChip
+        key="f"
+        label={opt.fat.name}
+        gramsText={`${opt.fat.grams}غ`}
+        onSwap={() =>
+          onSwapPart({
+            category: "fats",
+            sourceName: opt.fat.name,
+            sourceKey: NAME_MAP[opt.fat.name] || null,
+            sourceGrams: opt.fat.grams,
+          })
+        }
+      />
     );
   }
 
-  if (Array.isArray(v)) {
-    return (
-      <ul className="list-disc pr-5">
-        {customLine}
-        {v.map((x, i) => <li key={i}>• {String(x)}</li>)}
-      </ul>
-    );
-  }
-
-  if (typeof v === "object") {
-    const opts = v.options || v.choices || v.variants;
-    if (Array.isArray(opts) && opts.length) {
-      return (
-        <ul className="list-disc pr-5">
-          {customLine}
-          {opts.map((opt, idx) => {
-            // بروتين
-            let p = "";
-            if (opt.protein) {
-              const pname = opt.protein.name || "";
-              const grams = opt.protein.grams ?? "";
-              if (/بيض|Egg/i.test(pname)) {
-                const pieces = Math.max(1, Math.round((+grams || 0) / 60));
-                p = `${pname} ${pieces} حبة`;
-              } else {
-                p = `${pname} ${grams}غ`;
-              }
-            }
-            // كارب/دهون
-            const c = opt.carb ? `${opt.carb.name || ""} ${opt.carb.grams ?? ""}غ` : "";
-            const f = opt.fat ? `${opt.fat.name || ""} ${opt.fat.grams ?? ""}غ` : "";
-            const pieces = [p, c, f].filter(Boolean).join(" + ");
-            return <li key={idx}>الخيار {idx + 1}: {pieces || "-"}</li>;
-          })}
-        </ul>
-      );
-    }
-
-    const parts = [];
-    if (v.text) parts.push(v.text);
-    if (v.note) parts.push(<i key="note">{v.note}</i>);
-    return parts.length ? <div>{parts.map((el, i) => <div key={i}>{el}</div>)}</div> : JSON.stringify(v);
-  }
-
-  return String(v);
+  if (!chips.length) return <span className="text-gray-500 text-sm">—</span>;
+  return <div className="flex flex-wrap gap-2">{chips}</div>;
 }
 
 export default function NutritionPlan({ plan }) {
-  // ✅ لا نعدّل plan نفسه؛ نخزّن الاستبدالات مؤقتًا هنا
-  // مثال البنية: { breakfast: { protein: {...}, carb: {...}, fat: {...} }, ... }
+  // overrides على مستوى "جزء" داخل الوجبة: protein/carb/fat
+  // مثال: overrides.breakfast = { protein: { name, grams }, carb: {...}, fat: {...} }
   const [overrides, setOverrides] = useState({});
-  const [swapFor, setSwapFor] = useState(null);
+  const [drawer, setDrawer] = useState(null);
+  // drawer = { mealKey, mealTitle, category, sourceKey, sourceGrams, open: true }
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
     return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
   }
 
-  const titles = useMemo(() => ({
-    breakfast: "وجبة 1 - الإفطار",
-    lunch: "وجبة 2 - الغداء",
-    dinner: "وجبة 3 - العشاء",
-    meal4: "وجبة 4 - وجبة خفيفة محسوبة",
-  }), []);
+  const titles = useMemo(
+    () => ({
+      breakfast: "وجبة 1 - الإفطار",
+      lunch: "وجبة 2 - الغداء",
+      dinner: "وجبة 3 - العشاء",
+      meal4: "وجبة 4 - وجبة خفيفة محسوبة",
+    }),
+    []
+  );
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
-  const row = (k) =>
-    meals[k] == null ? null : (
+  const onSwapPart = (mealKey) => (info) => {
+    setDrawer({
+      open: true,
+      mealKey,
+      mealTitle: titles[mealKey] || mealKey,
+      category: info.category,      // "protein" | "carbs" | "fats"
+      sourceKey: info.sourceKey,    // مفتاح FOOD_DB إن وجد
+      sourceGrams: info.sourceGrams // غرامات المصدر الحالي
+    });
+  };
+
+  // عند تطبيق الاستبدال من الدروار
+  const handleConfirm = (payload) => {
+    if (!drawer?.mealKey) return;
+    setOverrides((prev) => ({
+      ...prev,
+      [drawer.mealKey]: {
+        ...(prev[drawer.mealKey] || {}),
+        ...payload, // { protein | carb | fat: { name, grams } }
+      },
+    }));
+    setDrawer(null);
+  };
+
+  const renderMealRow = (k) => {
+    const v = meals[k];
+    if (v == null) return null;
+
+    // نعرض “الخيار المخصص” أعلى القائمة إن وُجد
+    const custom = overrides[k];
+    const customLine = (() => {
+      if (!custom) return null;
+      const p = custom.protein ? `${custom.protein.name} ${custom.protein.grams}غ` : null;
+      const c = custom.carb ? `${custom.carb.name} ${custom.carb.grams}غ` : null;
+      const f = custom.fat ? `${custom.fat.name} ${custom.fat.grams}غ` : null;
+      const txt = [p, c, f].filter(Boolean).join(" + ");
+      if (!txt) return null;
+      return (
+        <li className="font-medium text-green-700">
+          الخيار المخصص: {txt}
+        </li>
+      );
+    })();
+
+    // لو الخطة بصيغة { options: [...] } نعرض كل خيار كسطر من chips قابلة للاستبدال
+    if (typeof v === "object" && Array.isArray(v.options) && v.options.length) {
+      return (
+        <tr key={k}>
+          <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-44">
+            {titles[k] || k}
+          </td>
+          <td className="border p-3 space-y-2">
+            <ul className="list-disc pr-5">
+              {customLine}
+              {v.options.map((opt, idx) => (
+                <li key={idx} className="space-y-1">
+                  <div className="text-sm text-gray-700">الخيار {idx + 1}:</div>
+                  {renderOptionsAsChips(opt, onSwapPart(k))}
+                </li>
+              ))}
+            </ul>
+            {custom ? (
+              <div className="text-xs text-green-700 mt-1">تم تطبيق استبدال مخصص على هذه الوجبة.</div>
+            ) : null}
+          </td>
+        </tr>
+      );
+    }
+
+    // صيغ أخرى (string/array/object بسيط)
+    const fallback = (
       <tr key={k}>
-        {/* اسم الوجبة */}
-        <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-40">
+        <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-44">
           {titles[k] || k}
         </td>
-
-        {/* المحتوى + زر الاستبدال */}
         <td className="border p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">{renderMealValue(meals[k], overrides[k])}</div>
-            <button
-              onClick={() => setSwapFor(k)}
-              className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 shrink-0"
-            >
-              استبدال ↻
-            </button>
-          </div>
-
-          {/* شارة توضح أن الوجبة معدّلة */}
-          {overrides[k] && (
-            <div className="text-xs text-green-700 mt-2">
-              تم تطبيق استبدال مخصص على هذه الوجبة.
-            </div>
-          )}
+          <ul className="list-disc pr-5">
+            {customLine}
+            <li className="text-sm text-gray-700">
+              {typeof v === "string" ? v : <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>}
+            </li>
+          </ul>
+          {custom ? (
+            <div className="text-xs text-green-700 mt-1">تم تطبيق استبدال مخصص على هذه الوجبة.</div>
+          ) : null}
         </td>
       </tr>
     );
 
-  const mainRows = order.map(row).filter(Boolean);
-  const extraRows = Object.keys(meals).filter(k => !seen.has(k)).map(row).filter(Boolean);
-
-  const handleConfirmSwap = (payload) => {
-    setOverrides((prev) => ({
-      ...prev,
-      [swapFor]: payload, // نخزن البروتين/الكارب/الدهون المختارة
-    }));
-    setSwapFor(null);
+    return fallback;
   };
+
+  const mainRows = order.map(renderMealRow).filter(Boolean);
+  const extraRows = Object.keys(meals).filter((k) => !seen.has(k)).map(renderMealRow).filter(Boolean);
 
   return (
     <>
@@ -171,12 +246,17 @@ export default function NutritionPlan({ plan }) {
       </section>
 
       {/* Drawer الاستبدال */}
-      <SwapDrawer
-        open={!!swapFor}
-        mealTitle={swapFor ? (titles[swapFor] || swapFor) : ""}
-        onClose={() => setSwapFor(null)}
-        onConfirm={handleConfirmSwap}
-      />
+      {drawer?.open && (
+        <SwapDrawer
+          open
+          onClose={() => setDrawer(null)}
+          mealTitle={drawer.mealTitle}
+          category={drawer.category}
+          sourceKey={drawer.sourceKey}
+          sourceGrams={drawer.sourceGrams}
+          onConfirm={handleConfirm}
+        />
+      )}
     </>
   );
 }
