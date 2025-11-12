@@ -2,17 +2,14 @@
 import React, { useMemo, useState } from "react";
 import { FOOD_DB } from "../data/food-db";
 
-/**
- * يحسب ماكروز/سعرات عنصر معين عند كمية بالجرام (أو بالقطعة لو unit=piece)
- */
+/** حساب ماكروز لعنصر بكمية (غ/حبة) */
 function macrosFor(foodKey, gramsOrPieces) {
   const item = FOOD_DB.protein[foodKey] || FOOD_DB.carbs[foodKey] || FOOD_DB.fats[foodKey];
   if (!item) return null;
 
-  // حالة "قطعة" (مثل البيض)
   if (item.unit === "piece") {
     const pieces = Number(gramsOrPieces) || 0;
-    const { protein, carbs, fat, calories } = item.macrosPerUnit || {};
+    const { protein = 0, carbs = 0, fat = 0, calories = 0 } = item.macrosPerUnit || {};
     return {
       protein: +(protein * pieces).toFixed(1),
       carbs: +(carbs * pieces).toFixed(1),
@@ -23,23 +20,19 @@ function macrosFor(foodKey, gramsOrPieces) {
     };
   }
 
-  // حالة per100g
   const g = Number(gramsOrPieces) || 0;
-  const m = item.macros100 || { protein: 0, carbs: 0, fat: 0, calories: 0 };
+  const { protein = 0, carbs = 0, fat = 0, calories = 0 } = item.macros100 || {};
   return {
-    protein: +((m.protein * g) / 100).toFixed(1),
-    carbs: +((m.carbs * g) / 100).toFixed(1),
-    fat: +((m.fat * g) / 100).toFixed(1),
-    calories: +((m.calories * g) / 100).toFixed(0),
+    protein: +((protein * g) / 100).toFixed(1),
+    carbs: +((carbs * g) / 100).toFixed(1),
+    fat: +((fat * g) / 100).toFixed(1),
+    calories: +((calories * g) / 100).toFixed(0),
     displayGrams: `${g}غ`,
     grams: g,
   };
 }
 
-/**
- * بالنهاية نعتمد البروتين كهدف أساسي ونقيس عليه.
- * نحاول إيجاد كمية مكافئة للعنصر البديل بحيث بروتين البديل ≈ بروتين المصدر.
- */
+/** نطابق البروتين بين المصدر والبديل (تقريبًا) */
 function solveEquivalentGrams(source, targetKey, sourceCategory) {
   const target = FOOD_DB[sourceCategory]?.[targetKey]
     || FOOD_DB.protein[targetKey]
@@ -48,8 +41,6 @@ function solveEquivalentGrams(source, targetKey, sourceCategory) {
 
   if (!target) return { grams: null, pieces: null };
 
-  // مصدرنا قد يكون per100g أو piece
-  // نحسب بروتين/100غ أو بروتين/القطعة للهدف:
   if (target.unit === "piece") {
     const pPerUnit = (target.macrosPerUnit?.protein || 0);
     if (pPerUnit <= 0) return { grams: null, pieces: null };
@@ -59,8 +50,7 @@ function solveEquivalentGrams(source, targetKey, sourceCategory) {
   } else {
     const p100 = (target.macros100?.protein || 0);
     if (p100 <= 0) return { grams: null, pieces: null };
-    // غرامات ≈ (بروتين المصدر / بروتين لكل 100غ) * 100
-    const grams = Math.max(5, Math.round((source.protein / p100) * 100 / 5) * 5);
+    const grams = Math.max(5, Math.round(((source.protein / p100) * 100) / 5) * 5);
     return { grams, pieces: null };
   }
 }
@@ -81,10 +71,10 @@ export default function SwapDrawer({
   open,
   onClose,
   mealTitle,
-  category,         // "protein" | "carbs" | "fats"
-  sourceKey,        // مفتاح العنصر الأصلي (إن وجد)
-  sourceGrams,      // غرامات (أو عدد قطع) العنصر الأصلي
-  onConfirm,        // (payload) => void
+  category,
+  sourceKey,
+  sourceGrams,
+  onConfirm,
 }) {
   const [pickedKey, setPickedKey] = useState(null);
 
@@ -95,10 +85,7 @@ export default function SwapDrawer({
 
   const candidates = useMemo(() => {
     const keys = CATEGORY_KEYS[category] || [];
-    return keys.map((k) => ({
-      key: k,
-      item: FOOD_DB[category][k],
-    }));
+    return keys.map((k) => ({ key: k, item: FOOD_DB[category][k] })).filter(Boolean);
   }, [category]);
 
   if (!open) return null;
@@ -114,14 +101,12 @@ export default function SwapDrawer({
     if (!pickedKey) return;
     const preview = computePreview(pickedKey);
     if (!preview) return;
-
-    // نرسل payload بالشكل: { protein|carb|fat: { name, grams } }
     const chosen = FOOD_DB[category][pickedKey];
     const label = chosen?.label || pickedKey;
     onConfirm?.({
       [category === "carbs" ? "carb" : category === "fats" ? "fat" : "protein"]: {
         name: label,
-        grams: chosen?.unit === "piece" ? (preview.displayGrams) : preview.grams,
+        grams: chosen?.unit === "piece" ? preview.displayGrams : preview.grams,
       },
     });
   };
@@ -131,19 +116,26 @@ export default function SwapDrawer({
       {/* الخلفية */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      {/* الدروار */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 max-h-[85vh] overflow-auto">
+      {/* bottom sheet */}
+      <div
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-4 md:p-5 max-h-[88vh] overflow-auto shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* مقبض سحب للموبايل */}
+        <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-gray-300" />
+
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold text-green-700">
+          <h3 className="text-base md:text-lg font-bold text-green-700">
             {TITLE_MAP[category] || "بدائل"} {mealTitle ? `— ${mealTitle}` : ""}
           </h3>
-          <button onClick={onClose} className="text-gray-600 hover:text-black">إغلاق ✕</button>
+          <button onClick={onClose} className="text-gray-600 hover:text-black text-sm md:text-base">إغلاق ✕</button>
         </div>
 
         {/* مصدر المقارنة */}
         {sourceMacros ? (
           <div className="text-xs text-gray-600 mb-3">
-            سنحاول مطابقة البروتين: <b>{sourceMacros.protein}غ بروتين</b> (المصدر الحالي).
+            سنطابق تقريبًا بروتين المصدر: <b>{sourceMacros.protein}غ</b>.
           </div>
         ) : (
           <div className="text-xs text-yellow-700 mb-3">
@@ -151,20 +143,22 @@ export default function SwapDrawer({
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* قائمة المرشحين — عمودي على الجوال، شبكي على الشاشات الأكبر */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {candidates.map(({ key, item }) => {
             const preview = computePreview(key);
             return (
               <button
                 key={key}
                 onClick={() => setPickedKey(key)}
-                className={`border rounded-lg p-3 text-right ${pickedKey === key ? "border-green-600 ring-2 ring-green-100" : "hover:border-gray-400"}`}
+                className={`text-right rounded-xl border p-3 md:p-4 transition
+                ${pickedKey === key ? "border-green-600 ring-2 ring-green-100" : "hover:border-gray-400"}`}
               >
-                <div className="font-medium">{item.label}</div>
+                <div className="font-medium text-gray-900">{item.label}</div>
                 {preview ? (
                   <div className="text-xs text-gray-600 mt-1 leading-5">
-                    الكمية المقترحة: <b>{preview.displayGrams}</b><br/>
-                    بروتين: <b>{preview.protein}غ</b> — كارب: <b>{preview.carbs}غ</b> — دهون: <b>{preview.fat}غ</b><br/>
+                    الكمية المقترحة: <b>{preview.displayGrams}</b><br />
+                    بروتين: <b>{preview.protein}غ</b> — كارب: <b>{preview.carbs}غ</b> — دهون: <b>{preview.fat}غ</b><br />
                     سعرات تقريبية: <b>{preview.calories}</b>
                   </div>
                 ) : (
@@ -176,11 +170,13 @@ export default function SwapDrawer({
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm">إلغاء</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm">
+            إلغاء
+          </button>
           <button
             onClick={handleApply}
             disabled={!pickedKey}
-            className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm disabled:opacity-60"
           >
             تطبيق الاستبدال
           </button>
