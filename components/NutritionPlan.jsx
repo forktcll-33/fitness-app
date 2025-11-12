@@ -90,15 +90,14 @@ function renderOptionsAsChips(opt, onSwapPart) {
 }
 
 export default function NutritionPlan({ plan }) {
-  // overrides على مستوى "جزء" داخل الوجبة: protein/carb/fat
-  // مثال: overrides.breakfast = { protein: { name, grams }, carb: {...}, fat: {...} }
   const [overrides, setOverrides] = useState({});
   const [drawer, setDrawer] = useState(null);
-  // drawer = { mealKey, mealTitle, category, sourceKey, sourceGrams, open: true }
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
-    return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
+    return (
+      <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>
+    );
   }
 
   const titles = useMemo(
@@ -110,6 +109,7 @@ export default function NutritionPlan({ plan }) {
     }),
     []
   );
+
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
@@ -118,13 +118,12 @@ export default function NutritionPlan({ plan }) {
       open: true,
       mealKey,
       mealTitle: titles[mealKey] || mealKey,
-      category: info.category,      // "protein" | "carbs" | "fats"
-      sourceKey: info.sourceKey,    // مفتاح FOOD_DB إن وجد
-      sourceGrams: info.sourceGrams // غرامات المصدر الحالي
+      category: info.category,
+      sourceKey: info.sourceKey,
+      sourceGrams: info.sourceGrams,
     });
   };
 
-  // عند تطبيق الاستبدال من الدروار
   const handleConfirm = (payload) => {
     if (!drawer?.mealKey) return;
     setOverrides((prev) => ({
@@ -140,24 +139,9 @@ export default function NutritionPlan({ plan }) {
   const renderMealRow = (k) => {
     const v = meals[k];
     if (v == null) return null;
-
-    // نعرض “الخيار المخصص” أعلى القائمة إن وُجد
     const custom = overrides[k];
-    const customLine = (() => {
-      if (!custom) return null;
-      const p = custom.protein ? `${custom.protein.name} ${custom.protein.grams}غ` : null;
-      const c = custom.carb ? `${custom.carb.name} ${custom.carb.grams}غ` : null;
-      const f = custom.fat ? `${custom.fat.name} ${custom.fat.grams}غ` : null;
-      const txt = [p, c, f].filter(Boolean).join(" + ");
-      if (!txt) return null;
-      return (
-        <li className="font-medium text-green-700">
-          الخيار المخصص: {txt}
-        </li>
-      );
-    })();
 
-    // لو الخطة بصيغة { options: [...] } نعرض كل خيار كسطر من chips قابلة للاستبدال
+    // ✅ دمج مباشر بين القيم الأصلية والمستبدلة
     if (typeof v === "object" && Array.isArray(v.options) && v.options.length) {
       return (
         <tr key={k}>
@@ -166,23 +150,34 @@ export default function NutritionPlan({ plan }) {
           </td>
           <td className="border p-3 space-y-2">
             <ul className="list-disc pr-5">
-              {customLine}
-              {v.options.map((opt, idx) => (
-                <li key={idx} className="space-y-1">
-                  <div className="text-sm text-gray-700">الخيار {idx + 1}:</div>
-                  {renderOptionsAsChips(opt, onSwapPart(k))}
-                </li>
-              ))}
+              {v.options.map((opt, idx) => {
+                const applied = overrides[k] || {};
+                const displayOpt = {
+                  protein: applied.protein || opt.protein,
+                  carb: applied.carb || opt.carb,
+                  fat: applied.fat || opt.fat,
+                };
+                return (
+                  <li key={idx} className="space-y-1">
+                    <div className="text-sm text-gray-700">
+                      الخيار {idx + 1}:
+                    </div>
+                    {renderOptionsAsChips(displayOpt, onSwapPart(k))}
+                  </li>
+                );
+              })}
             </ul>
             {custom ? (
-              <div className="text-xs text-green-700 mt-1">تم تطبيق استبدال مخصص على هذه الوجبة.</div>
+              <div className="text-xs text-green-700 mt-1">
+                تم تطبيق استبدال مؤقت على هذه الوجبة (يُعاد للوضع الأساسي عند تحديث الصفحة).
+              </div>
             ) : null}
           </td>
         </tr>
       );
     }
 
-    // صيغ أخرى (string/array/object بسيط)
+    // fallback
     const fallback = (
       <tr key={k}>
         <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-44">
@@ -190,13 +185,18 @@ export default function NutritionPlan({ plan }) {
         </td>
         <td className="border p-3">
           <ul className="list-disc pr-5">
-            {customLine}
             <li className="text-sm text-gray-700">
-              {typeof v === "string" ? v : <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>}
+              {typeof v === "string" ? (
+                v
+              ) : (
+                <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>
+              )}
             </li>
           </ul>
           {custom ? (
-            <div className="text-xs text-green-700 mt-1">تم تطبيق استبدال مخصص على هذه الوجبة.</div>
+            <div className="text-xs text-green-700 mt-1">
+              تم تطبيق استبدال مؤقت على هذه الوجبة.
+            </div>
           ) : null}
         </td>
       </tr>
@@ -206,12 +206,17 @@ export default function NutritionPlan({ plan }) {
   };
 
   const mainRows = order.map(renderMealRow).filter(Boolean);
-  const extraRows = Object.keys(meals).filter((k) => !seen.has(k)).map(renderMealRow).filter(Boolean);
+  const extraRows = Object.keys(meals)
+    .filter((k) => !seen.has(k))
+    .map(renderMealRow)
+    .filter(Boolean);
 
   return (
     <>
       <section className="bg-white rounded-2xl border p-6 shadow space-y-4">
-        <h2 className="text-xl font-bold text-green-700">خطة الوجبات (داخل الداشبورد)</h2>
+        <h2 className="text-xl font-bold text-green-700">
+          خطة الوجبات (داخل الداشبورد)
+        </h2>
 
         {/* ملخص الماكروز */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -239,7 +244,9 @@ export default function NutritionPlan({ plan }) {
             {mainRows.length ? mainRows : null}
             {extraRows.length ? extraRows : null}
             {!mainRows.length && !extraRows.length ? (
-              <tr><td className="p-3">لا توجد بيانات وجبات</td></tr>
+              <tr>
+                <td className="p-3">لا توجد بيانات وجبات</td>
+              </tr>
             ) : null}
           </tbody>
         </table>
