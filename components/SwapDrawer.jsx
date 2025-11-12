@@ -32,27 +32,106 @@ function macrosFor(foodKey, gramsOrPieces) {
   };
 }
 
+/** قيود/تقريب للكميات حسب الصنف لنتائج منطقية أكثر */
+function clampAndRoundGrams(key, grams) {
+  // نطاقات منطقية تقريبية
+  const ranges = {
+    // بروتينات
+    chicken_breast_100: [80, 220],
+    tuna_100: [80, 220],
+    lentils_cooked_100: [80, 250],
+    egg_large: [1, 10], // بالـ "حبة" يُعالَج خارجًا
+    // كارب
+    oats_dry_100: [20, 120],
+    rice_cooked_100: [80, 300],
+    bread_100: [30, 200],
+    // دهون
+    mixed_nuts_100: [10, 60],
+    olive_oil_100: [5, 40],
+  };
+
+  const [minG, maxG] = ranges[key] || [5, 500];
+  const clamped = Math.max(minG, Math.min(maxG, grams));
+  // نقرب لأقرب 5غ لمعقولية العرض
+  return Math.round(clamped / 5) * 5;
+}
+
 /** نطابق البروتين بين المصدر والبديل (تقريبًا) */
-function solveEquivalentGrams(source, targetKey, sourceCategory) {
-  const target = FOOD_DB[sourceCategory]?.[targetKey]
-    || FOOD_DB.protein[targetKey]
-    || FOOD_DB.carbs[targetKey]
-    || FOOD_DB.fats[targetKey];
+function solveEquivalentGrams(sourceMacros, targetKey, category) {
+  const target =
+    FOOD_DB[category]?.[targetKey] ||
+    FOOD_DB.protein[targetKey] ||
+    FOOD_DB.carbs[targetKey] ||
+    FOOD_DB.fats[targetKey];
 
   if (!target) return { grams: null, pieces: null };
 
+  // لو الهدف "حبات" (بيض)
   if (target.unit === "piece") {
     const pPerUnit = (target.macrosPerUnit?.protein || 0);
     if (pPerUnit <= 0) return { grams: null, pieces: null };
-    const pieces = Math.max(1, Math.round(source.protein / pPerUnit));
-    const grams = pieces * (target.gramsPerUnit || 0);
-    return { grams, pieces };
-  } else {
-    const p100 = (target.macros100?.protein || 0);
-    if (p100 <= 0) return { grams: null, pieces: null };
-    const grams = Math.max(5, Math.round(((source.protein / p100) * 100) / 5) * 5);
-    return { grams, pieces: null };
+    const pieces = Math.max(1, Math.round(sourceMacros.protein / pPerUnit));
+    return { grams: pieces * (target.gramsPerUnit || 0), pieces };
   }
+
+  // per100g
+  const p100 = (target.macros100?.protein || 0);
+  if (p100 <= 0) return { grams: null, pieces: null };
+  let grams = (sourceMacros.protein / p100) * 100;
+
+  grams = clampAndRoundGrams(targetKey, grams);
+  return { grams, pieces: null };
+}
+
+/** هيوريستك لتقدير ماكروز المصدر عندما لا يوجد sourceKey (معتمدة على الاسم) */
+function heuristicSourceMacrosByName(name = "", grams = 0, category) {
+  const g = Number(grams) || 0;
+  const n = String(name).trim();
+
+  const per100 = (p, c, f, cal) => ({
+    protein: +((p * g) / 100).toFixed(1),
+    carbs: +((c * g) / 100).toFixed(1),
+    fat: +((f * g) / 100).toFixed(1),
+    calories: +((cal * g) / 100).toFixed(0),
+    displayGrams: `${g}غ`,
+    grams: g,
+  });
+
+  // بروتين
+  if (/سمك|هامور|نازلي|فيليه|سلمون/i.test(n)) {
+    // سمك أبيض عام ~ 23p/100g
+    return per100(23, 0, 2, 120);
+  }
+  if (/لحم|بقري|غنم|حاشي|عجل/i.test(n)) {
+    // لحم أحمر قليل الدهن تقديرًا ~ 26p/100g
+    return per100(26, 0, 10, 200);
+  }
+  if (/زبادي\s*يوناني|Greek/i.test(n)) {
+    // يوناني خالي الدسم تقديرًا ~ 10-12p/100g
+    return per100(11, 4, 0, 60);
+  }
+
+  // كارب
+  if (/توست|خبز/i.test(n)) {
+    return per100(9, 49, 3, 265);
+  }
+  if (/بطاط(س|ا)|بطاطا/i.test(n)) {
+    return per100(2, 20, 0, 87);
+  }
+  if (/حبحب|بطيخ|رقي/i.test(n)) {
+    return per100(1, 8, 0, 30);
+  }
+
+  // دهون
+  if (/فول\s*سوداني|زبدة\s*فول|peanut/i.test(n)) {
+    return per100(25, 20, 50, 588);
+  }
+
+  // آخر الملاذ: متوسطات حسب الفئة
+  if (category === "protein") return per100(20, 2, 5, 150);
+  if (category === "carbs") return per100(5, 25, 2, 150);
+  if (category === "fats") return per100(5, 5, 30, 300);
+  return null;
 }
 
 const CATEGORY_KEYS = {
@@ -71,18 +150,39 @@ export default function SwapDrawer({
   open,
   onClose,
   mealTitle,
-  category,    // "protein" | "carbs" | "fats"
-  sourceKey,   // مفتاح العنصر الأصلي (بعد الاشتقاق)
-  sourceGrams, // غرامات/قطع المصدر
-  optionIdx,   // لأي خيار داخل الوجبة
+  category,         // "protein" | "carbs" | "fats"
+  sourceKey,        // قد يكون null
+  sourceName,       // 👈 جديد — نستخدمه للهيوريستك
+  sourceGrams,      // غرامات المصدر الأصلي
+  sourcePieces,     // 👈 جديد — عدد حبات إن كان بيض
   onConfirm,
 }) {
   const [pickedKey, setPickedKey] = useState(null);
 
   const sourceMacros = useMemo(() => {
-    if (!sourceKey || !open) return null;
-    return macrosFor(sourceKey, sourceGrams);
-  }, [sourceKey, sourceGrams, open]);
+    if (!open) return null;
+
+    // لو عندنا مفتاح معروف في FOOD_DB
+    if (sourceKey) {
+      const item =
+        FOOD_DB.protein[sourceKey] ||
+        FOOD_DB.carbs[sourceKey] ||
+        FOOD_DB.fats[sourceKey];
+
+      if (item?.unit === "piece") {
+        // لو بيض — نستخدم عدد الحبات إن توفر، وإلا نحوّل الغرامات إلى حبات
+        const pieces =
+          (typeof sourcePieces === "number" && sourcePieces > 0)
+            ? sourcePieces
+            : Math.max(1, Math.round((+sourceGrams || 0) / (item.gramsPerUnit || 60)));
+        return macrosFor(sourceKey, pieces);
+      }
+      return macrosFor(sourceKey, sourceGrams);
+    }
+
+    // لا يوجد مفتاح: نقدّر من الاسم (سمك/لحم/زبادي يوناني/توست/بطاطس/حبحب/زبدة فول...)
+    return heuristicSourceMacrosByName(sourceName, sourceGrams, category);
+  }, [open, sourceKey, sourceName, sourceGrams, sourcePieces, category]);
 
   const candidates = useMemo(() => {
     const keys = CATEGORY_KEYS[category] || [];
@@ -104,6 +204,7 @@ export default function SwapDrawer({
     if (!preview) return;
     const chosen = FOOD_DB[category][pickedKey];
     const label = chosen?.label || pickedKey;
+
     onConfirm?.({
       [category === "carbs" ? "carb" : category === "fats" ? "fat" : "protein"]: {
         name: label,
@@ -123,7 +224,6 @@ export default function SwapDrawer({
         role="dialog"
         aria-modal="true"
       >
-        {/* مقبض سحب للموبايل */}
         <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-gray-300" />
 
         <div className="flex items-center justify-between mb-3">
@@ -133,18 +233,16 @@ export default function SwapDrawer({
           <button onClick={onClose} className="text-gray-600 hover:text-black text-sm md:text-base">إغلاق ✕</button>
         </div>
 
-        {/* مصدر المقارنة */}
         {sourceMacros ? (
           <div className="text-xs text-gray-600 mb-3">
             سنطابق تقريبًا بروتين المصدر: <b>{sourceMacros.protein}غ</b>.
           </div>
         ) : (
           <div className="text-xs text-yellow-700 mb-3">
-            لم نتمكن من حساب المصدر بدقة؛ سيتم اختيار كمية تقريبية.
+            لم نتمكن من حساب المصدر؛ استعملنا تقديرًا افتراضيًا للمعاينة.
           </div>
         )}
 
-        {/* قائمة المرشحين — عمودي على الجوال، شبكي على الشاشات الأكبر */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {candidates.map(({ key, item }) => {
             const preview = computePreview(key);

@@ -1,29 +1,11 @@
 // components/NutritionPlan.jsx
 import React, { useMemo, useState } from "react";
 import SwapDrawer from "./SwapDrawer";
-/** اشتقاق مفتاح FOOD_DB من الاسم (فَزّي/ذكي) */
-function deriveKeyFromName(name) {
-  const n = String(name || "").trim().toLowerCase();
+import { NAME_MAP } from "../data/food-db";
 
-  // بروتين
-  if (/(^|\s)(بيض|egg)/i.test(n)) return "egg_large";
-  if (/(صدور|صدر|دجاج|chicken)/i.test(n)) return "chicken_breast_100";
-  if (/(تونة|tuna)/i.test(n)) return "tuna_100";
-  if (/(عدس)/i.test(n)) return "lentils_cooked_100";
-
-  // كارب
-  if (/(شوفان|oat)/i.test(n)) return "oats_dry_100";
-  if (/(أرز|رز|rice)/i.test(n)) return "rice_cooked_100";
-  if (/(خبز|bread)/i.test(n)) return "bread_100";
-
-  // دهون
-  if (/(مكسرات|nuts)/i.test(n)) return "mixed_nuts_100";
-  if (/(زيت زيتون|olive)/i.test(n)) return "olive_oil_100";
-
-  return null; // ما عرفناه -> الدروار بيعرض بدون معاينة دقيقة، بس الحين غالبًا بينجح
-}
-
-/** زر الجزء القابل للاستبدال */
+/**
+ * نعرض كل عنصر (بروتين/كارب/دهون) كزر قابل للضغط للاستبدال.
+ */
 function PartChip({ label, gramsText, onSwap }) {
   return (
     <button
@@ -47,56 +29,68 @@ function toPretty(name, grams) {
   return `${grams}غ`;
 }
 
-/** عرض خيار واحد كـ chips قابلة للاستبدال */
+
 function renderOptionsAsChips(opt, onSwapPart) {
   const chips = [];
 
   if (opt.protein?.name && (opt.protein.grams ?? null) != null) {
+    const srcName = opt.protein.name;
+    const srcGrams = opt.protein.grams;
+    const isEgg = /بيض|Egg/i.test(srcName);
+    const sourcePieces = isEgg ? Math.max(1, Math.round((+srcGrams || 0) / 60)) : undefined;
+
     chips.push(
       <PartChip
         key="p"
-        label={opt.protein.name}
-        gramsText={toPretty(opt.protein.name, opt.protein.grams)}
+        label={srcName}
+        gramsText={toPretty(srcName, srcGrams)}
         onSwap={() =>
           onSwapPart({
             category: "protein",
-            sourceName: opt.protein.name,
-            sourceKey: deriveKeyFromName(opt.protein.name),
-            sourceGrams: opt.protein.grams,
+            sourceName: srcName,
+            sourceKey: NAME_MAP[srcName] || null,
+            sourceGrams: srcGrams,
+            sourcePieces, // مهم للبيض
           })
         }
       />
     );
   }
   if (opt.carb?.name && (opt.carb.grams ?? null) != null) {
+    const srcName = opt.carb.name;
+    const srcGrams = opt.carb.grams;
+
     chips.push(
       <PartChip
         key="c"
-        label={opt.carb.name}
-        gramsText={`${opt.carb.grams}غ`}
+        label={srcName}
+        gramsText={`${srcGrams}غ`}
         onSwap={() =>
           onSwapPart({
             category: "carbs",
-            sourceName: opt.carb.name,
-            sourceKey: deriveKeyFromName(opt.carb.name),
-            sourceGrams: opt.carb.grams,
+            sourceName: srcName,
+            sourceKey: NAME_MAP[srcName] || null,
+            sourceGrams: srcGrams,
           })
         }
       />
     );
   }
   if (opt.fat?.name && (opt.fat.grams ?? null) != null) {
+    const srcName = opt.fat.name;
+    const srcGrams = opt.fat.grams;
+
     chips.push(
       <PartChip
         key="f"
-        label={opt.fat.name}
-        gramsText={`${opt.fat.grams}غ`}
+        label={srcName}
+        gramsText={`${srcGrams}غ`}
         onSwap={() =>
           onSwapPart({
             category: "fats",
-            sourceName: opt.fat.name,
-            sourceKey: deriveKeyFromName(opt.fat.name),
-            sourceGrams: opt.fat.grams,
+            sourceName: srcName,
+            sourceKey: NAME_MAP[srcName] || null,
+            sourceGrams: srcGrams,
           })
         }
       />
@@ -108,13 +102,10 @@ function renderOptionsAsChips(opt, onSwapPart) {
 }
 
 export default function NutritionPlan({ plan }) {
-  /**
-   * overrides بشكل "لكل خيار" بدل "لكل وجبة":
-   * overrides[mealKey][optionIdx] = { protein?:{name,grams}, carb?:..., fat?:... }
-   */
+    
   const [overrides, setOverrides] = useState({});
   const [drawer, setDrawer] = useState(null);
-  // drawer = { open, mealKey, optionIdx, mealTitle, category, sourceKey, sourceGrams }
+  // drawer = { open, mealKey, mealTitle, category, sourceKey, sourceName, sourceGrams, sourcePieces }
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
@@ -134,29 +125,26 @@ export default function NutritionPlan({ plan }) {
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
-  const onSwapPart = (mealKey, optionIdx) => (info) => {
+  const onSwapPart = (mealKey) => (info) => {
     setDrawer({
       open: true,
       mealKey,
-      optionIdx,
       mealTitle: titles[mealKey] || mealKey,
-      category: info.category,      // "protein" | "carbs" | "fats"
-      sourceKey: info.sourceKey,    // مفتاح FOOD_DB بعد الاشتقاق
-      sourceGrams: info.sourceGrams // غرامات المصدر الحالي
+      category: info.category,
+      sourceKey: info.sourceKey,
+      sourceName: info.sourceName,
+      sourceGrams: info.sourceGrams,
+      sourcePieces: info.sourcePieces,
     });
   };
 
-  // عند تطبيق الاستبدال من الدروار — نحفظه على مستوى الخيار المحدد
   const handleConfirm = (payload) => {
-    if (!drawer?.mealKey || drawer.optionIdx == null) return;
+    if (!drawer?.mealKey) return;
     setOverrides((prev) => ({
       ...prev,
       [drawer.mealKey]: {
         ...(prev[drawer.mealKey] || {}),
-        [drawer.optionIdx]: {
-          ...(prev[drawer.mealKey]?.[drawer.optionIdx] || {}),
-          ...payload, // { protein|carb|fat: { name, grams } }
-        },
+        ...payload, // { protein | carb | fat: { name, grams } }
       },
     }));
     setDrawer(null);
@@ -165,8 +153,8 @@ export default function NutritionPlan({ plan }) {
   const renderMealRow = (k) => {
     const v = meals[k];
     if (v == null) return null;
+    const custom = overrides[k];
 
-    // صيغة { options: [...] } — نطبّق override حسب index
     if (typeof v === "object" && Array.isArray(v.options) && v.options.length) {
       return (
         <tr key={k}>
@@ -176,7 +164,7 @@ export default function NutritionPlan({ plan }) {
           <td className="border p-3 space-y-2">
             <ul className="list-disc pr-5">
               {v.options.map((opt, idx) => {
-                const applied = overrides[k]?.[idx] || {};
+                const applied = overrides[k] || {};
                 const displayOpt = {
                   protein: applied.protein || opt.protein,
                   carb: applied.carb || opt.carb,
@@ -185,14 +173,14 @@ export default function NutritionPlan({ plan }) {
                 return (
                   <li key={idx} className="space-y-1">
                     <div className="text-sm text-gray-700">الخيار {idx + 1}:</div>
-                    {renderOptionsAsChips(displayOpt, onSwapPart(k, idx))}
+                    {renderOptionsAsChips(displayOpt, onSwapPart(k))}
                   </li>
                 );
               })}
             </ul>
-            {overrides[k] ? (
+            {custom ? (
               <div className="text-xs text-green-700 mt-1">
-                تم تطبيق استبدال مؤقت على أحد خيارات هذه الوجبة (يرجع الأصل عند إعادة التحميل).
+                تم تطبيق استبدال مؤقت على هذه الوجبة (يُعاد للوضع الأساسي عند تحديث الصفحة).
               </div>
             ) : null}
           </td>
@@ -212,6 +200,11 @@ export default function NutritionPlan({ plan }) {
               {typeof v === "string" ? v : <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>}
             </li>
           </ul>
+          {custom ? (
+            <div className="text-xs text-green-700 mt-1">
+              تم تطبيق استبدال مؤقت على هذه الوجبة.
+            </div>
+          ) : null}
         </td>
       </tr>
     );
@@ -265,8 +258,9 @@ export default function NutritionPlan({ plan }) {
           mealTitle={drawer.mealTitle}
           category={drawer.category}
           sourceKey={drawer.sourceKey}
+          sourceName={drawer.sourceName}
           sourceGrams={drawer.sourceGrams}
-          optionIdx={drawer.optionIdx}
+          sourcePieces={drawer.sourcePieces}
           onConfirm={handleConfirm}
         />
       )}
