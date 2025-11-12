@@ -71,9 +71,10 @@ export default function SwapDrawer({
   open,
   onClose,
   mealTitle,
-  category,
-  sourceKey,
-  sourceGrams,
+  category,    // "protein" | "carbs" | "fats"
+  sourceKey,   // مفتاح العنصر الأصلي (بعد الاشتقاق)
+  sourceGrams, // غرامات/قطع المصدر
+  optionIdx,   // لأي خيار داخل الوجبة
   onConfirm,
 }) {
   const [pickedKey, setPickedKey] = useState(null);

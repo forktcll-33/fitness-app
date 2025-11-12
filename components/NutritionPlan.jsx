@@ -1,12 +1,29 @@
 // components/NutritionPlan.jsx
 import React, { useMemo, useState } from "react";
 import SwapDrawer from "./SwapDrawer";
-import { NAME_MAP } from "../data/food-db";
+/** اشتقاق مفتاح FOOD_DB من الاسم (فَزّي/ذكي) */
+function deriveKeyFromName(name) {
+  const n = String(name || "").trim().toLowerCase();
 
-/**
- * نعرض كل عنصر (بروتين/كارب/دهون) كزر قابل للضغط للاستبدال.
- * نستخدم NAME_MAP لنحاول ربط الاسم بمفتاح في FOOD_DB حتى يمكن الحساب.
- */
+  // بروتين
+  if (/(^|\s)(بيض|egg)/i.test(n)) return "egg_large";
+  if (/(صدور|صدر|دجاج|chicken)/i.test(n)) return "chicken_breast_100";
+  if (/(تونة|tuna)/i.test(n)) return "tuna_100";
+  if (/(عدس)/i.test(n)) return "lentils_cooked_100";
+
+  // كارب
+  if (/(شوفان|oat)/i.test(n)) return "oats_dry_100";
+  if (/(أرز|رز|rice)/i.test(n)) return "rice_cooked_100";
+  if (/(خبز|bread)/i.test(n)) return "bread_100";
+
+  // دهون
+  if (/(مكسرات|nuts)/i.test(n)) return "mixed_nuts_100";
+  if (/(زيت زيتون|olive)/i.test(n)) return "olive_oil_100";
+
+  return null; // ما عرفناه -> الدروار بيعرض بدون معاينة دقيقة، بس الحين غالبًا بينجح
+}
+
+/** زر الجزء القابل للاستبدال */
 function PartChip({ label, gramsText, onSwap }) {
   return (
     <button
@@ -30,6 +47,7 @@ function toPretty(name, grams) {
   return `${grams}غ`;
 }
 
+/** عرض خيار واحد كـ chips قابلة للاستبدال */
 function renderOptionsAsChips(opt, onSwapPart) {
   const chips = [];
 
@@ -43,7 +61,7 @@ function renderOptionsAsChips(opt, onSwapPart) {
           onSwapPart({
             category: "protein",
             sourceName: opt.protein.name,
-            sourceKey: NAME_MAP[opt.protein.name] || null,
+            sourceKey: deriveKeyFromName(opt.protein.name),
             sourceGrams: opt.protein.grams,
           })
         }
@@ -60,7 +78,7 @@ function renderOptionsAsChips(opt, onSwapPart) {
           onSwapPart({
             category: "carbs",
             sourceName: opt.carb.name,
-            sourceKey: NAME_MAP[opt.carb.name] || null,
+            sourceKey: deriveKeyFromName(opt.carb.name),
             sourceGrams: opt.carb.grams,
           })
         }
@@ -77,7 +95,7 @@ function renderOptionsAsChips(opt, onSwapPart) {
           onSwapPart({
             category: "fats",
             sourceName: opt.fat.name,
-            sourceKey: NAME_MAP[opt.fat.name] || null,
+            sourceKey: deriveKeyFromName(opt.fat.name),
             sourceGrams: opt.fat.grams,
           })
         }
@@ -90,14 +108,17 @@ function renderOptionsAsChips(opt, onSwapPart) {
 }
 
 export default function NutritionPlan({ plan }) {
+  /**
+   * overrides بشكل "لكل خيار" بدل "لكل وجبة":
+   * overrides[mealKey][optionIdx] = { protein?:{name,grams}, carb?:..., fat?:... }
+   */
   const [overrides, setOverrides] = useState({});
   const [drawer, setDrawer] = useState(null);
+  // drawer = { open, mealKey, optionIdx, mealTitle, category, sourceKey, sourceGrams }
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
-    return (
-      <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>
-    );
+    return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
   }
 
   const titles = useMemo(
@@ -113,24 +134,29 @@ export default function NutritionPlan({ plan }) {
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
-  const onSwapPart = (mealKey) => (info) => {
+  const onSwapPart = (mealKey, optionIdx) => (info) => {
     setDrawer({
       open: true,
       mealKey,
+      optionIdx,
       mealTitle: titles[mealKey] || mealKey,
-      category: info.category,
-      sourceKey: info.sourceKey,
-      sourceGrams: info.sourceGrams,
+      category: info.category,      // "protein" | "carbs" | "fats"
+      sourceKey: info.sourceKey,    // مفتاح FOOD_DB بعد الاشتقاق
+      sourceGrams: info.sourceGrams // غرامات المصدر الحالي
     });
   };
 
+  // عند تطبيق الاستبدال من الدروار — نحفظه على مستوى الخيار المحدد
   const handleConfirm = (payload) => {
-    if (!drawer?.mealKey) return;
+    if (!drawer?.mealKey || drawer.optionIdx == null) return;
     setOverrides((prev) => ({
       ...prev,
       [drawer.mealKey]: {
         ...(prev[drawer.mealKey] || {}),
-        ...payload, // { protein | carb | fat: { name, grams } }
+        [drawer.optionIdx]: {
+          ...(prev[drawer.mealKey]?.[drawer.optionIdx] || {}),
+          ...payload, // { protein|carb|fat: { name, grams } }
+        },
       },
     }));
     setDrawer(null);
@@ -139,9 +165,8 @@ export default function NutritionPlan({ plan }) {
   const renderMealRow = (k) => {
     const v = meals[k];
     if (v == null) return null;
-    const custom = overrides[k];
 
-    // ✅ دمج مباشر بين القيم الأصلية والمستبدلة
+    // صيغة { options: [...] } — نطبّق override حسب index
     if (typeof v === "object" && Array.isArray(v.options) && v.options.length) {
       return (
         <tr key={k}>
@@ -151,7 +176,7 @@ export default function NutritionPlan({ plan }) {
           <td className="border p-3 space-y-2">
             <ul className="list-disc pr-5">
               {v.options.map((opt, idx) => {
-                const applied = overrides[k] || {};
+                const applied = overrides[k]?.[idx] || {};
                 const displayOpt = {
                   protein: applied.protein || opt.protein,
                   carb: applied.carb || opt.carb,
@@ -159,17 +184,15 @@ export default function NutritionPlan({ plan }) {
                 };
                 return (
                   <li key={idx} className="space-y-1">
-                    <div className="text-sm text-gray-700">
-                      الخيار {idx + 1}:
-                    </div>
-                    {renderOptionsAsChips(displayOpt, onSwapPart(k))}
+                    <div className="text-sm text-gray-700">الخيار {idx + 1}:</div>
+                    {renderOptionsAsChips(displayOpt, onSwapPart(k, idx))}
                   </li>
                 );
               })}
             </ul>
-            {custom ? (
+            {overrides[k] ? (
               <div className="text-xs text-green-700 mt-1">
-                تم تطبيق استبدال مؤقت على هذه الوجبة (يُعاد للوضع الأساسي عند تحديث الصفحة).
+                تم تطبيق استبدال مؤقت على أحد خيارات هذه الوجبة (يرجع الأصل عند إعادة التحميل).
               </div>
             ) : null}
           </td>
@@ -178,7 +201,7 @@ export default function NutritionPlan({ plan }) {
     }
 
     // fallback
-    const fallback = (
+    return (
       <tr key={k}>
         <td className="border p-3 font-semibold text-teal-700 bg-gray-50 w-44">
           {titles[k] || k}
@@ -186,37 +209,21 @@ export default function NutritionPlan({ plan }) {
         <td className="border p-3">
           <ul className="list-disc pr-5">
             <li className="text-sm text-gray-700">
-              {typeof v === "string" ? (
-                v
-              ) : (
-                <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>
-              )}
+              {typeof v === "string" ? v : <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>}
             </li>
           </ul>
-          {custom ? (
-            <div className="text-xs text-green-700 mt-1">
-              تم تطبيق استبدال مؤقت على هذه الوجبة.
-            </div>
-          ) : null}
         </td>
       </tr>
     );
-
-    return fallback;
   };
 
   const mainRows = order.map(renderMealRow).filter(Boolean);
-  const extraRows = Object.keys(meals)
-    .filter((k) => !seen.has(k))
-    .map(renderMealRow)
-    .filter(Boolean);
+  const extraRows = Object.keys(meals).filter((k) => !seen.has(k)).map(renderMealRow).filter(Boolean);
 
   return (
     <>
       <section className="bg-white rounded-2xl border p-6 shadow space-y-4">
-        <h2 className="text-xl font-bold text-green-700">
-          خطة الوجبات (داخل الداشبورد)
-        </h2>
+        <h2 className="text-xl font-bold text-green-700">خطة الوجبات (داخل الداشبورد)</h2>
 
         {/* ملخص الماكروز */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -244,9 +251,7 @@ export default function NutritionPlan({ plan }) {
             {mainRows.length ? mainRows : null}
             {extraRows.length ? extraRows : null}
             {!mainRows.length && !extraRows.length ? (
-              <tr>
-                <td className="p-3">لا توجد بيانات وجبات</td>
-              </tr>
+              <tr><td className="p-3">لا توجد بيانات وجبات</td></tr>
             ) : null}
           </tbody>
         </table>
@@ -261,6 +266,7 @@ export default function NutritionPlan({ plan }) {
           category={drawer.category}
           sourceKey={drawer.sourceKey}
           sourceGrams={drawer.sourceGrams}
+          optionIdx={drawer.optionIdx}
           onConfirm={handleConfirm}
         />
       )}
