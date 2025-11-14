@@ -15,6 +15,39 @@ const PLAN_LABELS = {
   premium: "اشتراك Premium - FitLife",
 };
 
+// نفس تعريف الخطط المستخدم تقريبًا في صفحة /subscriptions
+const PLANS = [
+  {
+    id: "basic",
+    name: "Basic",
+    price: PLAN_PRICES.basic,
+    period: "ريال / شهر",
+    highlight: false,
+    badge: "مناسب للبدايات",
+    description: "خطة ثابتة بسيطة بدون استبدال داخل الوجبات.",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: PLAN_PRICES.pro,
+    period: "ريال / شهر",
+    highlight: true,
+    badge: "الأكثر استخدامًا",
+    description:
+      "مرونة كاملة في اختيار الأطعمة داخل كل وجبة مع ضبط الكميات تلقائيًا.",
+  },
+  {
+    id: "premium",
+    name: "Premium",
+    price: PLAN_PRICES.premium,
+    period: "ريال / شهر",
+    highlight: false,
+    badge: "للمهتمين بالتفاصيل",
+    description:
+      "كل مميزات Pro + مميزات متقدمة سيتم إضافتها مثل ثبات الوزن، تنبيهات ذكية وتحليلات أعمق (قريبًا).",
+  },
+];
+
 export default function Onboarding() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -29,10 +62,10 @@ export default function Onboarding() {
   });
   const [summary, setSummary] = useState(null);
 
-  // ✅ نوع الخطة النشط (نقرأه من الـ query أو من بيانات المستخدم)
+  // ✅ نوع الخطة الحالي (يُستخدم فقط كافتراضي عند الدفع لو ما اختار شيء)
   const [tier, setTier] = useState("basic");
 
-  // ✅ نجلب بيانات المستخدم لاستخدام الاسم والإيميل والخطة المختارة
+  // ✅ نجلب بيانات المستخدم لاستخدام الاسم والإيميل وأيضًا subscriptionTier إن وجد
   const [user, setUser] = useState(null);
   useEffect(() => {
     let mounted = true;
@@ -43,7 +76,7 @@ export default function Onboarding() {
         if (mounted && d?.user) {
           setUser(d.user);
 
-          // 1) حاول استخدام الخطة من المستخدم لو موجودة
+          // لو عنده subscriptionTier محفوظ في الـ DB نستخدمه كافتراضي
           if (d.user.subscriptionTier) {
             const t = String(d.user.subscriptionTier).toLowerCase();
             if (PLAN_PRICES[t]) {
@@ -58,7 +91,7 @@ export default function Onboarding() {
     };
   }, []);
 
-  // 2) لو جاء من رابط فيه ?plan=pro مثلاً، نستخدمها
+  // لو جاء من /register?plan=pro مثلاً نستخدمه كافتراضي
   useEffect(() => {
     const q = router.query?.plan;
     if (!q) return;
@@ -109,16 +142,21 @@ export default function Onboarding() {
     }
   };
 
-  // ✅ كود الدفع – نرسل أيضًا نوع الاشتراك والسعر حسب الخطة
-  const handlePay = async () => {
+  // ✅ كود الدفع – يستقبل نوع الخطة المختارة من الكارت
+  const handlePay = async (selectedTier) => {
     try {
-      const price = PLAN_PRICES[tier] ?? PLAN_PRICES.basic; // ريال
+      const usedTier =
+        (selectedTier && PLAN_PRICES[selectedTier] && selectedTier) ||
+        (PLAN_PRICES[tier] ? tier : "basic");
+
+      const price = PLAN_PRICES[usedTier] ?? PLAN_PRICES.basic; // ريال
       const amountHalala = price * 100; // تحويل إلى هللات لميسر
-      const description = PLAN_LABELS[tier] || "اشتراك FitLife";
+      const description =
+        PLAN_LABELS[usedTier] || "اشتراك FitLife";
 
       const res = await fetch("/api/pay/create-invoice", {
         method: "POST",
-        credentials: "include", // 👈 مهم لإرسال الكوكي (JWT)
+        credentials: "include", // 👈 لإرسال الكوكي (JWT)
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
@@ -127,7 +165,7 @@ export default function Onboarding() {
           amount: amountHalala,
           currency: "SAR",
           description,
-          tier, // 👈 مهم: نوع الخطة (basic / pro / premium)
+          tier: usedTier, // 👈 نرسل نوع الخطة (basic / pro / premium)
           name: user?.name || "عميل FitLife",
           email: user?.email || "no-email@fitlife.app",
         }),
@@ -155,40 +193,90 @@ export default function Onboarding() {
     }
   };
 
-  // ✅ بعد إدخال البيانات يعرض الملخص وزر الاشتراك
+  // ✅ بعد إدخال البيانات: ملخص + اختيار خطة الاشتراك
   if (summary) {
-    const price = PLAN_PRICES[tier] ?? PLAN_PRICES.basic;
-
     return (
       <div
-        className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-green-50 to-green-100 px-4"
+        className="min-h-screen flex flex-col items-center bg-gradient-to-br from-green-50 to-green-100 px-4 py-10"
         dir="rtl"
       >
-        <CheckCircle className="w-20 h-20 text-green-600 mb-6" />
-        <h1 className="text-3xl font-bold text-green-700 mb-4">
+        <CheckCircle className="w-20 h-20 text-green-600 mb-4 mt-4" />
+        <h1 className="text-3xl font-bold text-green-700 mb-2">
           تم تجهيز خطتك 🎉
         </h1>
 
-        <div className="bg-white shadow-lg rounded-xl p-6 mb-6 text-center max-w-md w-full">
+        <p className="text-gray-700 mb-6 text-center max-w-xl">
+          بناءً على بياناتك، هذه هي السعرات اليومية المقترحة لك. اختر الآن
+          خطة الاشتراك المناسبة لتحصل على الخطة الكاملة داخل لوحة التحكم.
+        </p>
+
+        <div className="bg-white shadow-lg rounded-xl p-6 mb-8 text-center max-w-md w-full">
           <p className="text-lg text-gray-700 mb-2">
             السعرات اليومية:{" "}
-            <span className="font-bold">{summary.calories} كالوري</span>
+            <span className="font-bold">
+              {summary.calories} كالوري
+            </span>
           </p>
+          {/* ممكن نضيف بروتين/كربوهيدرات/دهون لاحقًا من summary لو حاب */}
+        </div>
 
-          <p className="text-lg text-gray-700 mb-8">
-            اشترك الآن فقط بـ{" "}
-            <span className="font-bold text-green-600">
-              {price} ريال
-            </span>{" "}
-            للحصول على خطتك كاملة (كل الوجبات موزعة بالجرامات).
-          </p>
+        {/* بطاقات اختيار خطة الاشتراك */}
+        <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+          {PLANS.map((plan) => (
+            <article
+              key={plan.id}
+              className={`relative bg-white rounded-2xl shadow-lg p-6 flex flex-col border ${
+                plan.highlight
+                  ? "border-green-500 ring-2 ring-green-100 scale-[1.02]"
+                  : "border-gray-100"
+              }`}
+            >
+              {plan.highlight && (
+                <div className="absolute -top-3 right-4">
+                  <span className="inline-block px-3 py-1 rounded-full bg-green-600 text-white text-xs font-semibold shadow">
+                    {plan.badge}
+                  </span>
+                </div>
+              )}
 
-          <button
-            onClick={handlePay}
-            className="px-10 py-4 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 transition text-lg font-semibold"
-          >
-            اشترك الآن
-          </button>
+              {!plan.highlight && plan.badge && (
+                <div className="mb-2">
+                  <span className="inline-block px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                    {plan.badge}
+                  </span>
+                </div>
+              )}
+
+              <h2 className="text-2xl font-bold text-green-700 mb-2">
+                {plan.name}
+              </h2>
+              <p className="text-gray-600 text-sm mb-4">
+                {plan.description}
+              </p>
+
+              <div className="mb-4">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-green-700">
+                    {plan.price}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    {plan.period}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handlePay(plan.id)}
+                className={`mt-auto w-full py-3 rounded-lg text-sm font-semibold transition ${
+                  plan.highlight
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-gray-900 text-white hover:bg-black"
+                }`}
+              >
+                اشترك في هذه الخطة
+              </button>
+            </article>
+          ))}
         </div>
       </div>
     );
@@ -211,9 +299,9 @@ export default function Onboarding() {
         <div className="flex justify-center items-center gap-4 mb-8 text-sm font-semibold text-gray-500">
           <span className="text-green-600">1. البيانات</span>
           <span>›</span>
-          <span>2. الملخص</span>
+          <span>2. الملخص + اختيار الخطة</span>
           <span>›</span>
-          <span>3. الاشتراك</span>
+          <span>3. الدفع</span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
