@@ -17,26 +17,23 @@ async function readBody(req) {
 
 export default async function handler(req, res) {
   console.log("MOYASAR CALLBACK HIT", req.method, req.headers["user-agent"]);
-
-  if (req.method !== "POST") {
+  if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
-  }
 
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
-    if (!secret) {
+    if (!secret)
       return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
-    }
 
     // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
     const raw = await readBody(req);
     let body = null;
 
-    // نحاول أولاً JSON
+    // جرّب JSON
     try {
       body = JSON.parse(raw);
     } catch {
-      // لو ما زبط، نجرب form-encoded
+      // جرّب form-encoded
       try {
         const params = new URLSearchParams(raw);
         body = Object.fromEntries(params.entries());
@@ -45,7 +42,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // التقط id من كل مكان ممكن
+    // التقط id من أي مكان ممكن
     let id =
       req.query?.id ||
       body?.id ||
@@ -53,9 +50,7 @@ export default async function handler(req, res) {
       body?.invoice?.id ||
       body?.data?.id;
 
-    if (!id) {
-      return res.status(400).json({ error: "invoice id مطلوب" });
-    }
+    if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
     // ✅ تحقّق من الفاتورة من ميسر باستخدام SECRET
     const resp = await fetch(
@@ -85,17 +80,18 @@ export default async function handler(req, res) {
       ? +inv.amount_cents
       : undefined;
     const currency = inv?.currency || undefined;
+    const metaEmail =
+      inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    const meta = inv?.metadata || {};
-    const metaEmail = meta.customer_email || meta.email || null;
-    const metaTierRaw =
-      meta.subscription_tier || meta.tier || meta.plan || null;
-
-    // ✅ نظف نوع الاشتراك وتأكد أنه واحد من الثلاثة فقط
-    const allowedTiers = ["basic", "pro", "premium"];
-    const metaTier = allowedTiers.includes(String(metaTierRaw).toLowerCase())
-      ? String(metaTierRaw).toLowerCase()
-      : null;
+    // 👈 نقرأ نوع الاشتراك من الميتاداتا اللي أرسلناها من create-invoice
+    const metaTierRaw = inv?.metadata?.subscription_tier || null;
+    let subscriptionTier = null;
+    if (metaTierRaw) {
+      const t = String(metaTierRaw).toLowerCase();
+      if (["basic", "pro", "premium"].includes(t)) {
+        subscriptionTier = t;
+      }
+    }
 
     // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
     let order = null;
@@ -114,7 +110,7 @@ export default async function handler(req, res) {
         .catch(() => null);
     }
 
-    // 🔎 حاول ربط المستخدم: أولاً من الطلب، ثم من البريد الموجود في الميتاداتا
+    // 🔎 حاول ربط المستخدم: أولاً من الطلب، ثم من البريد الموجود في الـ metadata
     let targetUserId = order?.userId ? Number(order.userId) : undefined;
     if (!targetUserId && metaEmail) {
       const u = await prisma.user
@@ -123,15 +119,13 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // ✅ فعّل الاشتراك إن كانت الفاتورة مدفوعة ومعروف المستخدم
+    // ✅ فعّل الاشتراك إن كانت مدفوعة + حدّث نوع الخطة لو متوفر
     if (isPaid && targetUserId) {
       const updateData = {
         isSubscribed: true,
       };
-
-      // لو عندنا tier صحيح في الميتاداتا، نخزّنه
-      if (metaTier) {
-        updateData.subscriptionTier = metaTier; // SubscriptionTier enum (basic/pro/premium)
+      if (subscriptionTier) {
+        updateData.subscriptionTier = subscriptionTier;
       }
 
       await prisma.user.update({
@@ -139,16 +133,13 @@ export default async function handler(req, res) {
         data: updateData,
       });
 
-      console.log("CALLBACK → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId, "TIER:", metaTier);
-    } else {
       console.log(
-        "CALLBACK → NOT PAID or USER UNKNOWN",
-        "isPaid:",
-        isPaid,
-        "userId:",
+        "CALLBACK → PAID ✅ USER:",
         targetUserId,
-        "invoice:",
-        invoiceId
+        "INVOICE:",
+        invoiceId,
+        "TIER:",
+        subscriptionTier || "(unchanged)"
       );
     }
 

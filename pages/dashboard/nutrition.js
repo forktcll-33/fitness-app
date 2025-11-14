@@ -11,14 +11,12 @@ export async function getServerSideProps({ req }) {
     .find((c) => c.trim().startsWith("token="))
     ?.split("=")[1];
 
-  if (!token) {
+  if (!token)
     return { redirect: { destination: "/login", permanent: false } };
-  }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ✅ نجيب المستخدم من القاعدة مع نوع الاشتراك
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
       select: {
@@ -26,18 +24,12 @@ export async function getServerSideProps({ req }) {
         name: true,
         email: true,
         plan: true,
-        subscriptionTier: true, // <-- مهم
+        subscriptionTier: true, // 👈 نقرأ الخطة من قاعدة البيانات
       },
     });
 
-    if (!user) {
+    if (!user)
       return { redirect: { destination: "/login", permanent: false } };
-    }
-
-    // ✅ نوع الاشتراك من القاعدة (enum: basic | pro | premium)
-    const rawTier = user.subscriptionTier || "basic";
-    const tier =
-      ["basic", "pro", "premium"].includes(rawTier) ? rawTier : "basic";
 
     let plan = user.plan;
     if (typeof plan === "string") {
@@ -47,6 +39,12 @@ export async function getServerSideProps({ req }) {
         plan = null;
       }
     }
+
+    // 👈 نحدد نوع الاشتراك من الـ DB، ولو ما فيه نعتبره basic
+    const rawTier = (user.subscriptionTier || "basic").toString().toLowerCase();
+    const tier = ["basic", "pro", "premium"].includes(rawTier)
+      ? rawTier
+      : "basic";
 
     return {
       props: {
