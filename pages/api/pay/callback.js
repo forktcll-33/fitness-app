@@ -72,6 +72,15 @@ export default async function handler(req, res) {
         .json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
     }
 
+    console.log("MOYASAR INVOICE FULL:", {
+      id: inv?.id,
+      status: inv?.status,
+      amount: inv?.amount,
+      currency: inv?.currency,
+      metadata: inv?.metadata,
+      description: inv?.description,
+    });
+
     const invoiceId = inv?.id || id;
     const isPaid = inv?.status === "paid";
     const amountCents = Number.isFinite(+inv?.amount)
@@ -83,15 +92,35 @@ export default async function handler(req, res) {
     const metaEmail =
       inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // 👈 نقرأ نوع الاشتراك من الميتاداتا اللي أرسلناها من create-invoice
-    const metaTierRaw = inv?.metadata?.subscription_tier || null;
+    // 👈 محاولة أولى: نقرأ نوع الاشتراك من الميتاداتا
     let subscriptionTier = null;
+    const metaTierRaw = inv?.metadata?.subscription_tier || null;
     if (metaTierRaw) {
       const t = String(metaTierRaw).toLowerCase();
       if (["basic", "pro", "premium"].includes(t)) {
         subscriptionTier = t;
       }
     }
+
+    // 👈 محاولة ثانية: نستنتج نوع الخطة من السعر
+    // الأسعار عندنا: basic = 10 ريال = 1000 هللة
+    //                 pro   = 29 ريال = 2900 هللة
+    //                 premium = 49 ريال = 4900 هللة
+    if (!subscriptionTier && Number.isFinite(amountCents)) {
+      if (amountCents === 1000) subscriptionTier = "basic";
+      else if (amountCents === 2900) subscriptionTier = "pro";
+      else if (amountCents === 4900) subscriptionTier = "premium";
+    }
+
+    // 👈 محاولة ثالثة: من الوصف إذا فيه كلمة Pro / Premium
+    if (!subscriptionTier && typeof inv?.description === "string") {
+      const desc = inv.description.toLowerCase();
+      if (desc.includes("premium")) subscriptionTier = "premium";
+      else if (desc.includes("pro")) subscriptionTier = "pro";
+      else if (desc.includes("basic")) subscriptionTier = "basic";
+    }
+
+    console.log("DEDUCED TIER:", subscriptionTier, "AMOUNT:", amountCents);
 
     // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
     let order = null;
