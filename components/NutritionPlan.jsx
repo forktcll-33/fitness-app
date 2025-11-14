@@ -29,7 +29,6 @@ function toPretty(name, grams) {
   return `${grams}غ`;
 }
 
-
 function renderOptionsAsChips(opt, onSwapPart) {
   const chips = [];
 
@@ -37,7 +36,9 @@ function renderOptionsAsChips(opt, onSwapPart) {
     const srcName = opt.protein.name;
     const srcGrams = opt.protein.grams;
     const isEgg = /بيض|Egg/i.test(srcName);
-    const sourcePieces = isEgg ? Math.max(1, Math.round((+srcGrams || 0) / 60)) : undefined;
+    const sourcePieces = isEgg
+      ? Math.max(1, Math.round((+srcGrams || 0) / 60))
+      : undefined;
 
     chips.push(
       <PartChip
@@ -56,6 +57,7 @@ function renderOptionsAsChips(opt, onSwapPart) {
       />
     );
   }
+
   if (opt.carb?.name && (opt.carb.grams ?? null) != null) {
     const srcName = opt.carb.name;
     const srcGrams = opt.carb.grams;
@@ -76,6 +78,7 @@ function renderOptionsAsChips(opt, onSwapPart) {
       />
     );
   }
+
   if (opt.fat?.name && (opt.fat.grams ?? null) != null) {
     const srcName = opt.fat.name;
     const srcGrams = opt.fat.grams;
@@ -97,19 +100,23 @@ function renderOptionsAsChips(opt, onSwapPart) {
     );
   }
 
-  if (!chips.length) return <span className="text-gray-500 text-sm">—</span>;
+  if (!chips.length) {
+    return <span className="text-gray-500 text-sm">—</span>;
+  }
   return <div className="flex flex-wrap gap-2">{chips}</div>;
 }
 
 export default function NutritionPlan({ plan }) {
-    
+  // overrides[mealKey][optionIndex] = { protein?, carb?, fat? }
   const [overrides, setOverrides] = useState({});
   const [drawer, setDrawer] = useState(null);
-  // drawer = { open, mealKey, mealTitle, category, sourceKey, sourceName, sourceGrams, sourcePieces }
+  // drawer = { open, mealKey, optionIndex, mealTitle, category, sourceKey, sourceName, sourceGrams, sourcePieces }
 
   const meals = plan?.meals;
   if (!meals || typeof meals !== "object") {
-    return <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>;
+    return (
+      <div className="bg-white rounded-xl border p-6">لا توجد بيانات وجبات</div>
+    );
   }
 
   const titles = useMemo(
@@ -125,10 +132,11 @@ export default function NutritionPlan({ plan }) {
   const order = ["breakfast", "lunch", "dinner", "meal4"];
   const seen = new Set(order);
 
-  const onSwapPart = (mealKey) => (info) => {
+  const onSwapPart = (mealKey, optionIndex) => (info) => {
     setDrawer({
       open: true,
       mealKey,
+      optionIndex,
       mealTitle: titles[mealKey] || mealKey,
       category: info.category,
       sourceKey: info.sourceKey,
@@ -139,21 +147,31 @@ export default function NutritionPlan({ plan }) {
   };
 
   const handleConfirm = (payload) => {
-    if (!drawer?.mealKey) return;
-    setOverrides((prev) => ({
-      ...prev,
-      [drawer.mealKey]: {
-        ...(prev[drawer.mealKey] || {}),
-        ...payload, // { protein | carb | fat: { name, grams } }
-      },
-    }));
+    if (!drawer?.mealKey || drawer.optionIndex == null) return;
+
+    setOverrides((prev) => {
+      const mealOverrides = prev[drawer.mealKey] || {};
+      const optionOverrides = mealOverrides[drawer.optionIndex] || {};
+      return {
+        ...prev,
+        [drawer.mealKey]: {
+          ...mealOverrides,
+          [drawer.optionIndex]: {
+            ...optionOverrides,
+            ...payload, // { protein | carb | fat: { name, grams } }
+          },
+        },
+      };
+    });
+
     setDrawer(null);
   };
 
   const renderMealRow = (k) => {
     const v = meals[k];
     if (v == null) return null;
-    const custom = overrides[k];
+
+    const customMealOverrides = overrides[k];
 
     if (typeof v === "object" && Array.isArray(v.options) && v.options.length) {
       return (
@@ -164,23 +182,34 @@ export default function NutritionPlan({ plan }) {
           <td className="border p-3 space-y-2">
             <ul className="list-disc pr-5">
               {v.options.map((opt, idx) => {
-                const applied = overrides[k] || {};
+                const applied = customMealOverrides?.[idx] || {};
                 const displayOpt = {
                   protein: applied.protein || opt.protein,
                   carb: applied.carb || opt.carb,
                   fat: applied.fat || opt.fat,
                 };
+                const hasCustom =
+                  applied.protein || applied.carb || applied.fat;
+
                 return (
                   <li key={idx} className="space-y-1">
-                    <div className="text-sm text-gray-700">الخيار {idx + 1}:</div>
-                    {renderOptionsAsChips(displayOpt, onSwapPart(k))}
+                    <div className="text-sm text-gray-700">
+                      الخيار {idx + 1}{" "}
+                      {hasCustom && (
+                        <span className="text-xs text-green-600">
+                          (مستبدل مؤقتًا)
+                        </span>
+                      )}
+                    </div>
+                    {renderOptionsAsChips(displayOpt, onSwapPart(k, idx))}
                   </li>
                 );
               })}
             </ul>
-            {custom ? (
+            {customMealOverrides ? (
               <div className="text-xs text-green-700 mt-1">
-                تم تطبيق استبدال مؤقت على هذه الوجبة (يُعاد للوضع الأساسي عند تحديث الصفحة).
+                تم تطبيق استبدال مؤقت على هذه الوجبة (يُعاد للوضع الأساسي عند
+                تحديث الصفحة).
               </div>
             ) : null}
           </td>
@@ -197,10 +226,16 @@ export default function NutritionPlan({ plan }) {
         <td className="border p-3">
           <ul className="list-disc pr-5">
             <li className="text-sm text-gray-700">
-              {typeof v === "string" ? v : <pre className="text-xs">{JSON.stringify(v, null, 2)}</pre>}
+              {typeof v === "string" ? (
+                v
+              ) : (
+                <pre className="text-xs">
+                  {JSON.stringify(v, null, 2)}
+                </pre>
+              )}
             </li>
           </ul>
-          {custom ? (
+          {customMealOverrides ? (
             <div className="text-xs text-green-700 mt-1">
               تم تطبيق استبدال مؤقت على هذه الوجبة.
             </div>
@@ -211,30 +246,43 @@ export default function NutritionPlan({ plan }) {
   };
 
   const mainRows = order.map(renderMealRow).filter(Boolean);
-  const extraRows = Object.keys(meals).filter((k) => !seen.has(k)).map(renderMealRow).filter(Boolean);
+  const extraRows = Object.keys(meals)
+    .filter((k) => !seen.has(k))
+    .map(renderMealRow)
+    .filter(Boolean);
 
   return (
     <>
       <section className="bg-white rounded-2xl border p-6 shadow space-y-4">
-        <h2 className="text-xl font-bold text-green-700">خطة الوجبات (داخل الداشبورد)</h2>
+        <h2 className="text-xl font-bold text-green-700">
+          خطة الوجبات (داخل الداشبورد)
+        </h2>
 
         {/* ملخص الماكروز */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="rounded-lg border p-3 text-center">
             <div className="text-gray-500 text-sm">السعرات</div>
-            <div className="text-lg font-bold">{plan?.calories ?? "-"}</div>
+            <div className="text-lg font-bold">
+              {plan?.calories ?? "-"}
+            </div>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <div className="text-gray-500 text-sm">البروتين (جم)</div>
-            <div className="text-lg font-bold">{plan?.protein ?? "-"}</div>
+            <div className="text-lg font-bold">
+              {plan?.protein ?? "-"}
+            </div>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <div className="text-gray-500 text-sm">الكارب (جم)</div>
-            <div className="text-lg font-bold">{plan?.carbs ?? "-"}</div>
+            <div className="text-lg font-bold">
+              {plan?.carbs ?? "-"}
+            </div>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <div className="text-gray-500 text-sm">الدهون (جم)</div>
-            <div className="text-lg font-bold">{plan?.fat ?? "-"}</div>
+            <div className="text-lg font-bold">
+              {plan?.fat ?? "-"}
+            </div>
           </div>
         </div>
 
@@ -244,7 +292,9 @@ export default function NutritionPlan({ plan }) {
             {mainRows.length ? mainRows : null}
             {extraRows.length ? extraRows : null}
             {!mainRows.length && !extraRows.length ? (
-              <tr><td className="p-3">لا توجد بيانات وجبات</td></tr>
+              <tr>
+                <td className="p-3">لا توجد بيانات وجبات</td>
+              </tr>
             ) : null}
           </tbody>
         </table>
