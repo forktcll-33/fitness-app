@@ -19,7 +19,9 @@ function AnnouncementsBar() {
         if (mounted && r.ok && data.ok) setItems(data.items || []);
       } catch {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // تدوير تلقائي كل 6 ثوانٍ (إن وُجد أكثر من إعلان)
@@ -56,7 +58,9 @@ function AnnouncementsBar() {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-yellow-300" />
-                <span className="text-sm font-semibold opacity-90">إعلان هام</span>
+                <span className="text-sm font-semibold opacity-90">
+                  إعلان هام
+                </span>
               </div>
               <h3 className="text-xl md:text-2xl font-extrabold mb-1">
                 {current.title}
@@ -72,7 +76,9 @@ function AnnouncementsBar() {
                       key={idx}
                       onClick={() => setI(idx)}
                       className={`h-2 rounded-full transition-all ${
-                        idx === i ? "w-5 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
+                        idx === i
+                          ? "w-5 bg-white"
+                          : "w-2 bg-white/50 hover:bg-white/80"
                       }`}
                       aria-label={`انتقال إلى إعلان ${idx + 1}`}
                     />
@@ -120,6 +126,35 @@ function AnnouncementsBar() {
 export default function Home() {
   return (
     <div dir="rtl" className="bg-gray-50">
+      {/* ✅ هيدر بسيط مع رابط "الاشتراكات" */}
+      <header className="bg-white/90 backdrop-blur border-b">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+          <Link href="/" className="text-lg font-extrabold text-green-700">
+            FitLife
+          </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/smart-plan" className="hover:text-green-700">
+              الخطة الذكية
+            </Link>
+            <Link
+              href="/subscriptions"
+              className="font-semibold text-green-700 hover:text-green-900"
+            >
+              الاشتراكات
+            </Link>
+            <Link href="/login" className="hover:text-green-700">
+              تسجيل الدخول
+            </Link>
+            <Link
+              href="/register"
+              className="px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700"
+            >
+              إنشاء حساب
+            </Link>
+          </nav>
+        </div>
+      </header>
+
       {/* ✅ Hero Section (خلفية كاملة) */}
       <section
         className="relative text-white"
@@ -147,7 +182,14 @@ export default function Home() {
                   href="/register"
                   className="px-8 py-4 bg-yellow-400 text-green-900 font-semibold rounded-lg shadow hover:bg-yellow-300 transition"
                 >
-                  ابدأ الآن 
+                  ابدأ الآن
+                </Link>
+                {/* 🔥 زر خطط الاشتراك */}
+                <Link
+                  href="/subscriptions"
+                  className="px-8 py-4 border border-yellow-300 text-yellow-300 font-semibold rounded-lg shadow hover:bg-white/10 transition"
+                >
+                  خطط الاشتراك
                 </Link>
               </div>
             </div>
@@ -177,24 +219,34 @@ export default function Home() {
       {/* ✅ قسم كيف يعمل الموقع */}
       <section className="bg-white py-20">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold text-green-700 mb-12">كيف يعمل الموقع؟</h2>
+          <h2 className="text-3xl font-bold text-green-700 mb-12">
+            كيف يعمل الموقع؟
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-green-50 p-6 rounded-xl shadow">
-              <h3 className="text-xl font-bold text-green-800 mb-3">١. سجل حسابك</h3>
+              <h3 className="text-xl font-bold text-green-800 mb-3">
+                ١. سجل حسابك
+              </h3>
               <p className="text-gray-600">
-                أنشئ حسابك بسهولة وابدأ في إدخال بياناتك الأساسية مثل الوزن والطول والهدف.
+                أنشئ حسابك بسهولة وابدأ في إدخال بياناتك الأساسية مثل الوزن
+                والطول والهدف.
               </p>
             </div>
             <div className="bg-green-50 p-6 rounded-xl shadow">
-              <h3 className="text-xl font-bold text-green-800 mb-3">٢. حدد هدفك</h3>
+              <h3 className="text-xl font-bold text-green-800 mb-3">
+                ٢. حدد هدفك
+              </h3>
               <p className="text-gray-600">
                 اختر هدفك: نزول وزن، زيادة وزن أو الحفاظ على وزنك الحالي.
               </p>
             </div>
             <div className="bg-green-50 p-6 rounded-xl shadow">
-              <h3 className="text-xl font-bold text-green-800 mb-3">٣. استلم خطتك</h3>
+              <h3 className="text-xl font-bold text-green-800 mb-3">
+                ٣. استلم خطتك
+              </h3>
               <p className="text-gray-600">
-                استلم خطة غذائية وتمارين مخصصة لك مباشرة عبر لوحة التحكم الذكية.
+                استلم خطة غذائية وتمارين مخصصة لك مباشرة عبر لوحة التحكم
+                الذكية.
               </p>
             </div>
           </div>
@@ -234,8 +286,8 @@ export default function Home() {
               تمارين موجهة بالفيديو
             </h2>
             <p className="text-gray-600 text-lg leading-relaxed">
-              تابع تمارينك اليومية عبر فيديوهات احترافية توضح لك
-              الحركات بالخطوات. سواء كنت مبتدئ أو محترف، الخطة تتكيف معك.
+              تابع تمارينك اليومية عبر فيديوهات احترافية توضح لك الحركات
+              بالخطوات. سواء كنت مبتدئ أو محترف، الخطة تتكيف معك.
             </p>
           </div>
           {/* صورة */}
@@ -266,8 +318,8 @@ export default function Home() {
               لوحة تحكم سهلة وأنيقة
             </h2>
             <p className="text-gray-600 text-lg leading-relaxed">
-              من خلال لوحة التحكم يمكنك متابعة تقدمك، وزنّك، ومعدل
-              الالتزام بالخطة بسهولة وواجهة عصرية.
+              من خلال لوحة التحكم يمكنك متابعة تقدمك، وزنّك، ومعدل الالتزام
+              بالخطة بسهولة وواجهة عصرية.
             </p>
           </div>
         </div>
@@ -280,7 +332,8 @@ export default function Home() {
             جاهز تبدأ رحلتك؟
           </h2>
           <p className="text-green-100 text-lg md:text-xl mb-8 max-w-2xl mx-auto md:mx-0">
-            سجّل حسابك الآن وأنشئ خطتك الذكية خلال دقائق. مصممة حسب وزنك، طولك، نشاطك وهدفك.
+            سجّل حسابك الآن وأنشئ خطتك الذكية خلال دقائق. مصممة حسب وزنك،
+            طولك، نشاطك وهدفك.
           </p>
           <div className="flex gap-4 justify-center md:justify-start">
             <Link
@@ -289,7 +342,6 @@ export default function Home() {
             >
               ابدأ الآن
             </Link>
-            
           </div>
         </div>
       </section>
@@ -300,61 +352,79 @@ export default function Home() {
           <div className="space-y-2 text-right">
             <h3 className="text-lg font-bold text-green-700">عن الموقع</h3>
             <p className="text-gray-600">
-              منصة ذكية لتوليد الخطط الغذائية والتمارين وفق بياناتك وهدفك، بواجهة عربية سهلة وأنيقة.
+              منصة ذكية لتوليد الخطط الغذائية والتمارين وفق بياناتك وهدفك،
+              بواجهة عربية سهلة وأنيقة.
             </p>
           </div>
           <div className="space-y-2 text-right">
             <h3 className="text-lg font-bold text-green-700">روابط سريعة</h3>
             <ul className="space-y-2 text-gray-600">
-              <li><Link href="/smart-plan" className="hover:text-green-700">الخطة الذكية
-              </Link></li>
-              <li><Link href="/login" className="hover:text-green-700">تسجيل الدخول
-              </Link></li>
-              <li><Link href="/register" className="hover:text-green-700">إنشاء حساب
-              </Link></li>
+              <li>
+                <Link href="/smart-plan" className="hover:text-green-700">
+                  الخطة الذكية
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-green-700">
+                  تسجيل الدخول
+                </Link>
+              </li>
+              <li>
+                <Link href="/register" className="hover:text-green-700">
+                  إنشاء حساب
+                </Link>
+              </li>
             </ul>
           </div>
           <div className="space-y-2 text-right">
-           <h3 className="text-lg font-bold text-green-700">تواصل</h3>
-           <ul className="space-y-2 text-gray-600">
-           <li>
-           <a
-             href="mailto:Forktcll@gmail.com?subject=%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1"
-            className="hover:text-green-700"
-           >
-           بريد: Forktcll@gmail.com
-          </a>
-          </li>
-          <li>
-          <a
-        href="https://wa.me/966532157836?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="hover:text-green-700"
-      >
-        واتساب: 0532157836
-      </a>
-    </li>
-    <li>
-      
-    </li>
-  </ul>
-</div>
+            <h3 className="text-lg font-bold text-green-700">تواصل</h3>
+            <ul className="space-y-2 text-gray-600">
+              <li>
+                <a
+                  href="mailto:Forktcll@gmail.com?subject=%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1"
+                  className="hover:text-green-700"
+                >
+                  بريد: Forktcll@gmail.com
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://wa.me/966532157836?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-green-700"
+                >
+                  واتساب: 0532157836
+                </a>
+              </li>
+              <li></li>
+            </ul>
+          </div>
         </div>
-        <div className="border-t text-center text-sm text-gray-500 py-4 space-x-2 space-x-reverse" dir="rtl">
-  <span>© {new Date().getFullYear()} جميع الحقوق محفوظة لـ FitLife</span>
-  <span>•</span>
-  <Link href="/privacy" className="text-green-700 hover:underline">سياسة الخصوصية
-  </Link>
-  <span>•</span>
-  <Link href="/terms" className="text-green-700 hover:underline">الشروط والأحكام
-  </Link>
-  <span>•</span>
-  <Link href="/refund-policy" className="text-green-700 hover:underline">
-  سياسة الاسترجاع
-</Link>
-</div>
-    </footer>
-  </div>
-);
+        <div
+          className="border-t text-center text-sm text-gray-500 py-4 space-x-2 space-x-reverse"
+          dir="rtl"
+        >
+          <span>
+            © {new Date().getFullYear()} جميع الحقوق محفوظة لـ FitLife
+          </span>
+          <span>•</span>
+          <Link href="/privacy" className="text-green-700 hover:underline">
+            سياسة الخصوصية
+          </Link>
+          <span>•</span>
+          <Link href="/terms" className="text-green-700 hover:underline">
+            الشروط والأحكام
+          </Link>
+          <span>•</span>
+          <Link
+            href="/refund-policy"
+            className="text-green-700 hover:underline"
+          >
+            سياسة الاسترجاع
+          </Link>
+        </div>
+      </footer>
+    </div>
+  );
 }

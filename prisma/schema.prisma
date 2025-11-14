@@ -13,6 +13,12 @@ enum DiscountType {
   FLAT      // مبلغ ثابت (هللات)
 }
 
+enum SubscriptionTier {
+  basic
+  pro
+  premium
+}
+
 model User {
   id           Int     @id @default(autoincrement())
   name         String
@@ -20,7 +26,8 @@ model User {
   passwordHash String
   isSubscribed Boolean @default(false)
   role         String  @default("user")
-
+  
+  subscriptionTier SubscriptionTier @default(basic)
   // علاقات
   orders       Order[]
   resetTokens  PasswordResetToken[]

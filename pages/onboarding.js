@@ -71,46 +71,47 @@ export default function Onboarding() {
     }
   };
 
-  // ✅ كود الدفع – يمرر الاسم والإيميل و الـ JWT للسيرفر
-const handlePay = async () => {
-  try {
-    const res = await fetch("/api/pay/create-invoice", {
-      method: "POST",
-      credentials: "include",      // 👈 أهم شيء: يرسل الكوكي (JWT)
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        amount: 1000, // هللات = 10 ريال
-        currency: "SAR",
-        description: "خطة FitLife",
-        name: user?.name || "عميل FitLife",
-        email: user?.email || "no-email@fitlife.app",
-      }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.ok || !data.url) {
-      alert(data.error || "تعذر إنشاء الفاتورة");
-      return;
-    }
-
-    // ✅ خزّن رقم الفاتورة مؤقتًا لاستخدامه بصفحة success
+  // ✅ كود الدفع – نرسل أيضًا نوع الاشتراك (هنا: pro)
+  const handlePay = async () => {
     try {
-      if (data.invoice?.id) {
-        localStorage.setItem("pay_inv", data.invoice.id);
+      const res = await fetch("/api/pay/create-invoice", {
+        method: "POST",
+        credentials: "include", // 👈 مهم لإرسال الكوكي (JWT)
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          amount: 1000, // هللات = 10 ريال
+          currency: "SAR",
+          description: "اشتراك Pro - FitLife",
+          tier: "pro", // 👈 مهم: نحدد أن هذه الفاتورة لاشتراك Pro
+          name: user?.name || "عميل FitLife",
+          email: user?.email || "no-email@fitlife.app",
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok || !data.url) {
+        alert(data.error || "تعذر إنشاء الفاتورة");
+        return;
       }
-    } catch {}
 
-    // ✅ افتح صفحة الدفع في Moyasar
-    window.location.href = data.url;
+      // ✅ خزّن رقم الفاتورة مؤقتًا لاستخدامه بصفحة success
+      try {
+        if (data.invoice?.id) {
+          localStorage.setItem("pay_inv", data.invoice.id);
+        }
+      } catch {}
 
-  } catch (e) {
-    alert("حدث خطأ في إنشاء الفاتورة");
-  }
-};
+      // ✅ افتح صفحة الدفع في Moyasar
+      window.location.href = data.url;
+    } catch (e) {
+      console.error(e);
+      alert("حدث خطأ في إنشاء الفاتورة");
+    }
+  };
 
   // ✅ بعد إدخال البيانات يعرض الملخص وزر الاشتراك
   if (summary) {
