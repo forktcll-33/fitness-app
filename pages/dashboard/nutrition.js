@@ -17,6 +17,7 @@ export async function getServerSideProps({ req }) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
+    // 🔥 نقرأ الخطة مباشرة من قاعدة البيانات وليس من التوكن
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
       select: {
@@ -24,13 +25,14 @@ export async function getServerSideProps({ req }) {
         name: true,
         email: true,
         plan: true,
-        subscriptionTier: true, // 👈 نقرأ الخطة من قاعدة البيانات
+        subscriptionTier: true,
       },
     });
 
     if (!user)
       return { redirect: { destination: "/login", permanent: false } };
 
+    // الخطة قد تكون JSON أو string → نحولها ل JSON
     let plan = user.plan;
     if (typeof plan === "string") {
       try {
@@ -40,7 +42,7 @@ export async function getServerSideProps({ req }) {
       }
     }
 
-    // 👈 نحدد نوع الاشتراك من الـ DB، ولو ما فيه نعتبره basic
+    // 👈 نستخدم الخطة المحفوظة في قاعدة البيانات
     const rawTier = (user.subscriptionTier || "basic").toString().toLowerCase();
     const tier = ["basic", "pro", "premium"].includes(rawTier)
       ? rawTier
@@ -88,13 +90,13 @@ export default function NutritionPage({ user, plan, tier }) {
       </header>
 
       <main className="p-6 max-w-4xl mx-auto space-y-6">
-        {/* خطة التغذية داخل الداشبورد */}
+        {/* خطة التغذية */}
         <NutritionPlan
           plan={plan}
-          allowSwap={isProOrPremium} // Basic بدون استبدال – Pro/Premium فيها استبدال
+          allowSwap={isProOrPremium} // Pro/Premium تفعيل الاستبدال
         />
 
-        {/* باني الوجبات المتقدم — فقط لمشتركي Pro/Premium */}
+        {/* باني الوجبات — فقط Pro/Premium */}
         {isProOrPremium && (
           <section className="bg-white rounded-2xl border p-6 shadow">
             <ProMealBuilder userId={user?.id} />
