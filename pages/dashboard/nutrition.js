@@ -11,30 +11,33 @@ export async function getServerSideProps({ req }) {
     .find((c) => c.trim().startsWith("token="))
     ?.split("=")[1];
 
-  if (!token)
+  if (!token) {
     return { redirect: { destination: "/login", permanent: false } };
+  }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // نحاول نقرأ نوع الاشتراك من الـ token لو كنت مخزّنه فيه
-    const rawTier =
-      payload.subscriptionPlan ||
-      payload.planType ||
-      payload.tier ||
-      null;
-
-    const tier = ["basic", "pro", "premium"].includes(rawTier)
-      ? rawTier
-      : "basic";
-
+    // ✅ نجيب المستخدم من القاعدة مع نوع الاشتراك
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
-      select: { id: true, name: true, email: true, plan: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        plan: true,
+        subscriptionTier: true, // <-- مهم
+      },
     });
 
-    if (!user)
+    if (!user) {
       return { redirect: { destination: "/login", permanent: false } };
+    }
+
+    // ✅ نوع الاشتراك من القاعدة (enum: basic | pro | premium)
+    const rawTier = user.subscriptionTier || "basic";
+    const tier =
+      ["basic", "pro", "premium"].includes(rawTier) ? rawTier : "basic";
 
     let plan = user.plan;
     if (typeof plan === "string") {
@@ -63,8 +66,7 @@ export async function getServerSideProps({ req }) {
 
 export default function NutritionPage({ user, plan, tier }) {
   const currentTier = tier || "basic";
-  const isProOrPremium =
-    currentTier === "pro" || currentTier === "premium";
+  const isProOrPremium = currentTier === "pro" || currentTier === "premium";
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">

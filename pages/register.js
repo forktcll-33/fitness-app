@@ -3,7 +3,19 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/router";
 
+const PLAN_LABELS = {
+  basic: "Basic",
+  pro: "Pro",
+  premium: "Premium",
+};
+
 export default function Register() {
+  const router = useRouter();
+
+  const rawPlan =
+    typeof router.query.plan === "string" ? router.query.plan : "";
+  const activePlan = PLAN_LABELS[rawPlan] ? rawPlan : null;
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -11,7 +23,6 @@ export default function Register() {
     confirm: "",
   });
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const onChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -41,6 +52,8 @@ export default function Register() {
           name: form.name,
           email: form.email,
           password: form.password,
+          // 👇 نمرر الخطة المختارة للسيرفر (basic/pro/premium)
+          subscriptionTier: activePlan,
         }),
       });
 
@@ -50,7 +63,6 @@ export default function Register() {
         return;
       }
 
-      // ✅ توجيه تلقائي باستخدام redirect من الـ API
       router.push(data.redirect || "/login");
     } catch (err) {
       console.error(err);
@@ -66,9 +78,30 @@ export default function Register() {
       className="min-h-screen flex items-center justify-center bg-gray-50"
     >
       <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md">
-        <h1 className="text-3xl font-extrabold text-green-700 text-center mb-6">
+        <h1 className="text-3xl font-extrabold text-green-700 text-center mb-2">
           إنشاء حساب جديد
         </h1>
+
+        {activePlan && (
+          <div className="mb-4 text-center text-sm">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+              <span>الخطة المختارة:</span>
+              <span className="font-semibold">
+                {PLAN_LABELS[activePlan]}
+              </span>
+            </span>
+            <div className="mt-1 text-xs text-gray-500">
+              يمكنك تغيير الخطة من صفحة{" "}
+              <Link
+                href="/subscriptions"
+                className="text-green-700 hover:underline"
+              >
+                الاشتراكات
+              </Link>{" "}
+              قبل الدفع.
+            </div>
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>

@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   // استخرج التوكن من الكوكي
   const token = cookie
     .split(";")
-    .find(c => c.trim().startsWith("token="))
+    .find((c) => c.trim().startsWith("token="))
     ?.split("=")[1];
 
   if (!token) {
@@ -23,10 +23,23 @@ export default async function handler(req, res) {
     // فك التوكن
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // جيب بيانات المستخدم من القاعدة
+    // تأكيد نوع الـ id كرقم
+    const userId =
+      typeof payload.id === "string" ? parseInt(payload.id, 10) : payload.id;
+
+    // جيب بيانات المستخدم من القاعدة (مع معلومات الاشتراك)
     const user = await prisma.user.findUnique({
-      where: { id: payload.id },
-      select: { id: true, name: true, email: true, isSubscribed: true },
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isSubscribed: true,
+        // الحقول الجديدة الخاصة بالاشتراك (حسب السكيمة عندك)
+        subscriptionTier: true,          // BASIC / PRO / PREMIUM
+        subscriptionPriceHalala: true,   // السعر المخزّن بالهللة
+        role: true,
+      },
     });
 
     if (!user) {

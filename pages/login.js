@@ -7,6 +7,10 @@ export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const router = useRouter();
 
+  // ✅ نقرأ خطة الاشتراك إن وُجدت في الرابط (?plan=pro)
+  const plan =
+    typeof router.query.plan === "string" ? router.query.plan : "";
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -17,13 +21,21 @@ export default function Login() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        // ✅ نرسل plan مع البيانات (السيرفر ممكن يستخدمها لاحقًا)
+        body: JSON.stringify({ ...form, plan }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.ok) {
-        router.push(data.redirect || "/dashboard");
+        const baseRedirect = data.redirect || "/dashboard";
+
+        // ✅ لو الوجهة /onboarding ومعنا plan → نضيفها للـ URL
+        if (baseRedirect.startsWith("/onboarding") && plan) {
+          router.push(`${baseRedirect}?plan=${plan}`);
+        } else {
+          router.push(baseRedirect);
+        }
       } else {
         alert(data.error || "خطأ في تسجيل الدخول");
       }
@@ -69,7 +81,7 @@ export default function Login() {
             دخول
           </button>
 
-          {/* ✅ رابط "نسيت كلمة المرور؟" */}
+          {/* رابط "نسيت كلمة المرور؟" */}
           <div className="text-right mt-3">
             <Link
               href="/forgot-password"
@@ -83,7 +95,7 @@ export default function Login() {
         <p className="text-center text-gray-600 mt-6">
           ما عندك حساب؟{" "}
           <Link
-            href="/register"
+            href={plan ? `/register?plan=${plan}` : "/register"}
             className="text-green-600 font-semibold hover:underline"
           >
             إنشاء حساب

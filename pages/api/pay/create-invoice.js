@@ -2,8 +2,16 @@
 import { getUserFromRequest } from "../../../middleware/auth";
 import prisma from "../../../lib/prisma";
 
+// 👈 جدول أسعار الخطط بالهللة
+const PLAN_PRICES_HALALA = {
+  basic: 1000,   // 10 SAR
+  pro: 2900,     // 29 SAR
+  premium: 4900, // 49 SAR
+};
+
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
@@ -48,7 +56,18 @@ export default async function handler(req, res) {
       tier, // 👈 نوع الاشتراك (basic / pro / premium)
     } = req.body || {};
 
-    const amountHalalaBase = Number.isFinite(+amount) ? +amount : 1000; // 10 SAR
+    // 👈 نحدد السعر الأساسي حسب نوع الخطة إن وُجد
+    const tierKey =
+      typeof tier === "string" ? tier.toLowerCase().trim() : null;
+
+    let amountHalalaBase;
+    if (tierKey && PLAN_PRICES_HALALA[tierKey]) {
+      amountHalalaBase = PLAN_PRICES_HALALA[tierKey];
+    } else {
+      // fallback لو ما فيه tier معروف: نستعمل amount أو 10 ريال
+      amountHalalaBase = Number.isFinite(+amount) ? +amount : 1000;
+    }
+
     const curr = currency || "SAR";
     const desc = description || "خطة FitLife";
 
@@ -98,7 +117,9 @@ export default async function handler(req, res) {
     // ✅ احسب النهائي بعد الخصم
     let finalHalala = amountHalalaBase;
     if (appliedDiscount.type === "PERCENT") {
-      finalHalala = Math.round(amountHalalaBase * (1 - appliedDiscount.value / 100));
+      finalHalala = Math.round(
+        amountHalalaBase * (1 - appliedDiscount.value / 100)
+      );
     } else if (appliedDiscount.type === "FLAT") {
       finalHalala = Math.max(100, amountHalalaBase - appliedDiscount.value); // حد أدنى 1 ريال
     }
@@ -120,18 +141,25 @@ export default async function handler(req, res) {
         discount_type: appliedDiscount.type,
         discount_value: appliedDiscount.value,
         discount_note: appliedDiscount.note,
-        subscription_tier: tier || null, // 👈 نحفظ نوع الاشتراك في الميتاداتا
+        subscription_tier: tierKey || null, // 👈 نحفظ نوع الاشتراك في الميتاداتا
       },
     };
 
     const resp = await fetch("https://api.moyasar.com/v1/invoices", {
       method: "POST",
-      headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
     const data = await resp.json();
-    if (!resp.ok) return res.status(500).json({ error: data?.message || "Failed to create invoice" });
+    if (!resp.ok)
+      return res
+        .status(500)
+        .json({ error: data?.message || "Failed to create invoice" });
     console.log("PAY create-invoice → invoice:", {
       id: data?.id,
       status: data?.status,
@@ -143,7 +171,10 @@ export default async function handler(req, res) {
 
     const invoiceId = data?.id;
     const payUrl = data?.url || data?.payment_url || data?.invoice_url;
-    if (!invoiceId || !payUrl) return res.status(500).json({ error: "Invoice created but missing id/url" });
+    if (!invoiceId || !payUrl)
+      return res
+        .status(500)
+        .json({ error: "Invoice created but missing id/url" });
 
     // ✅ إنشاء Order داخلي وحفظ الخصومات
     if (userId) {
@@ -158,13 +189,12 @@ export default async function handler(req, res) {
           gateway: "moyasar",
           discountType: appliedDiscount.type,
           discountValue: appliedDiscount.value,
-          // 👈 ما نلمس السكيمة هنا عشان ما نكسر شيء، التير نلقطه من ميسر في callback عن طريق metadata.subscription_tier
+          // 👈 التير نلقطه لاحقًا من ميسر في callback عن طريق metadata.subscription_tier
         },
       });
     }
 
     return res.status(200).json({ ok: true, url: payUrl, invoice: data });
-
   } catch (err) {
     console.error("Create invoice fatal error:", err);
     return res.status(500).json({ error: "Server error" });

@@ -3,6 +3,18 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { CheckCircle } from "lucide-react";
 
+const PLAN_PRICES = {
+  basic: 10,
+  pro: 29,
+  premium: 49,
+};
+
+const PLAN_LABELS = {
+  basic: "اشتراك Basic - FitLife",
+  pro: "اشتراك Pro - FitLife",
+  premium: "اشتراك Premium - FitLife",
+};
+
 export default function Onboarding() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -17,7 +29,10 @@ export default function Onboarding() {
   });
   const [summary, setSummary] = useState(null);
 
-  // ✅ نجلب بيانات المستخدم لاستخدام الاسم والإيميل في الفاتورة
+  // ✅ نوع الخطة النشط (نقرأه من الـ query أو من بيانات المستخدم)
+  const [tier, setTier] = useState("basic");
+
+  // ✅ نجلب بيانات المستخدم لاستخدام الاسم والإيميل والخطة المختارة
   const [user, setUser] = useState(null);
   useEffect(() => {
     let mounted = true;
@@ -25,13 +40,33 @@ export default function Onboarding() {
       try {
         const r = await fetch("/api/auth/me");
         const d = await r.json().catch(() => ({}));
-        if (mounted && d?.user) setUser(d.user);
+        if (mounted && d?.user) {
+          setUser(d.user);
+
+          // 1) حاول استخدام الخطة من المستخدم لو موجودة
+          if (d.user.subscriptionTier) {
+            const t = String(d.user.subscriptionTier).toLowerCase();
+            if (PLAN_PRICES[t]) {
+              setTier(t);
+            }
+          }
+        }
       } catch {}
     })();
     return () => {
       mounted = false;
     };
   }, []);
+
+  // 2) لو جاء من رابط فيه ?plan=pro مثلاً، نستخدمها
+  useEffect(() => {
+    const q = router.query?.plan;
+    if (!q) return;
+    const t = String(q).toLowerCase();
+    if (PLAN_PRICES[t]) {
+      setTier(t);
+    }
+  }, [router.query?.plan]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -53,6 +88,7 @@ export default function Onboarding() {
     }
 
     try {
+      setLoading(true);
       const res = await fetch("/api/save-onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,12 +104,18 @@ export default function Onboarding() {
     } catch (err) {
       console.error(err);
       alert("خطأ غير متوقع");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ✅ كود الدفع – نرسل أيضًا نوع الاشتراك (هنا: pro)
+  // ✅ كود الدفع – نرسل أيضًا نوع الاشتراك والسعر حسب الخطة
   const handlePay = async () => {
     try {
+      const price = PLAN_PRICES[tier] ?? PLAN_PRICES.basic; // ريال
+      const amountHalala = price * 100; // تحويل إلى هللات لميسر
+      const description = PLAN_LABELS[tier] || "اشتراك FitLife";
+
       const res = await fetch("/api/pay/create-invoice", {
         method: "POST",
         credentials: "include", // 👈 مهم لإرسال الكوكي (JWT)
@@ -82,10 +124,10 @@ export default function Onboarding() {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          amount: 1000, // هللات = 10 ريال
+          amount: amountHalala,
           currency: "SAR",
-          description: "اشتراك Pro - FitLife",
-          tier: "pro", // 👈 مهم: نحدد أن هذه الفاتورة لاشتراك Pro
+          description,
+          tier, // 👈 مهم: نوع الخطة (basic / pro / premium)
           name: user?.name || "عميل FitLife",
           email: user?.email || "no-email@fitlife.app",
         }),
@@ -115,6 +157,8 @@ export default function Onboarding() {
 
   // ✅ بعد إدخال البيانات يعرض الملخص وزر الاشتراك
   if (summary) {
+    const price = PLAN_PRICES[tier] ?? PLAN_PRICES.basic;
+
     return (
       <div
         className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-green-50 to-green-100 px-4"
@@ -133,8 +177,10 @@ export default function Onboarding() {
 
           <p className="text-lg text-gray-700 mb-8">
             اشترك الآن فقط بـ{" "}
-            <span className="font-bold text-green-600">10 ريال</span> للحصول على
-            خطتك كاملة (كل الوجبات موزعة بالجرامات).
+            <span className="font-bold text-green-600">
+              {price} ريال
+            </span>{" "}
+            للحصول على خطتك كاملة (كل الوجبات موزعة بالجرامات).
           </p>
 
           <button
@@ -245,9 +291,10 @@ export default function Onboarding() {
 
           <button
             type="submit"
+            disabled={loading}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg transition"
           >
-            حفظ ومتابعة
+            {loading ? "جارٍ الحفظ..." : "حفظ ومتابعة"}
           </button>
         </form>
       </div>

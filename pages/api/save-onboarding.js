@@ -14,11 +14,11 @@ export default async function handler(req, res) {
 
     // حفظ بيانات المستخدم أولاً
     await prisma.user.update({
-      where: { id: parseInt(user.id) },
+      where: { id: parseInt(user.id, 10) },
       data: {
-        weight: parseInt(weight),
-        height: parseInt(height),
-        age: parseInt(age),
+        weight: parseInt(weight, 10),
+        height: parseInt(height, 10),
+        age: parseInt(age, 10),
         gender,
         activityLevel,
         goal,
@@ -26,7 +26,12 @@ export default async function handler(req, res) {
     });
 
     // نولّد الخطة بعد الحفظ مباشرة
-    const fakeReq = { method: "POST", headers: req.headers, body: {}, cookies: req.cookies };
+    const fakeReq = {
+      method: "POST",
+      headers: req.headers,
+      body: {},
+      cookies: req.cookies,
+    };
     const fakeRes = {
       status: (code) => ({
         json: (data) => ({ code, data }),
