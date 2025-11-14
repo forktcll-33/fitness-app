@@ -2,7 +2,7 @@
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
 import NutritionPlan from "../../components/NutritionPlan";
-import ProMealBuilder from "../../components/ProMealBuilder"; // 👈 المكوّن الجديد
+import ProMealBuilder from "../../components/ProMealBuilder";
 
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
@@ -11,21 +11,30 @@ export async function getServerSideProps({ req }) {
     .find((c) => c.trim().startsWith("token="))
     ?.split("=")[1];
 
-  if (!token) {
+  if (!token)
     return { redirect: { destination: "/login", permanent: false } };
-  }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    // نحاول نقرأ نوع الاشتراك من الـ token لو كنت مخزّنه فيه
+    const rawTier =
+      payload.subscriptionPlan ||
+      payload.planType ||
+      payload.tier ||
+      null;
+
+    const tier = ["basic", "pro", "premium"].includes(rawTier)
+      ? rawTier
+      : "basic";
+
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
-      // ⚠️ لا نضيف حقول جديدة هنا عشان ما نخاطر بكسر Prisma
       select: { id: true, name: true, email: true, plan: true },
     });
 
-    if (!user) {
+    if (!user)
       return { redirect: { destination: "/login", permanent: false } };
-    }
 
     let plan = user.plan;
     if (typeof plan === "string") {
@@ -43,7 +52,8 @@ export async function getServerSideProps({ req }) {
           name: user.name,
           email: user.email,
         },
-        plan: plan || null,
+        plan,
+        tier,
       },
     };
   } catch {
@@ -51,17 +61,10 @@ export async function getServerSideProps({ req }) {
   }
 }
 
-export default function NutritionPage({ user, plan }) {
-  // 🔐 لاحقًا تربطها من قاعدة البيانات (مثلاً user.subscription)
-  // مؤقتًا نخليها "pro" عشان تشوف محرّر الوجبات وتختبره
-  const subscription = "pro"; // "basic" | "pro" | "premium"
-
-  const hasPlan = !!plan && typeof plan === "object";
-
-  const calories = hasPlan ? plan.calories || 0 : 0;
-  const protein = hasPlan ? plan.protein || 0 : 0;
-  const carbs   = hasPlan ? plan.carbs   || 0 : 0;
-  const fat     = hasPlan ? plan.fat     || 0 : 0;
+export default function NutritionPage({ user, plan, tier }) {
+  const currentTier = tier || "basic";
+  const isProOrPremium =
+    currentTier === "pro" || currentTier === "premium";
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -72,27 +75,30 @@ export default function NutritionPage({ user, plan }) {
         <p className="text-sm text-gray-500 mt-1">
           👤 {user?.name || "-"} | 📧 {user?.email || "-"}
         </p>
+        <p className="text-xs text-gray-400 mt-1">
+          نوع الاشتراك الحالي:{" "}
+          <span className="font-semibold text-green-700">
+            {currentTier === "pro"
+              ? "Pro"
+              : currentTier === "premium"
+              ? "Premium"
+              : "Basic"}
+          </span>
+        </p>
       </header>
 
       <main className="p-6 max-w-4xl mx-auto space-y-6">
-        {!hasPlan ? (
-          <div className="rounded-2xl border bg-white p-5 text-sm text-gray-600">
-            لا توجد خطة تغذية محفوظة لهذا المستخدم حاليًا.
-          </div>
-        ) : (
-          <>
-            {/* الجدول الأساسي (ممكن يكون لمشتركي Basic فقط أو للجميع) */}
-            <NutritionPlan plan={plan} />
+        {/* خطة التغذية داخل الداشبورد */}
+        <NutritionPlan
+          plan={plan}
+          allowSwap={isProOrPremium} // Basic بدون استبدال – Pro/Premium فيها استبدال
+        />
 
-            {/* مُحرّر الوجبات الذكي لمشتركي Pro/Premium */}
-            <ProMealBuilder
-              calories={calories}
-              protein={protein}
-              carbs={carbs}
-              fat={fat}
-              subscription={subscription}
-            />
-          </>
+        {/* باني الوجبات المتقدم — فقط لمشتركي Pro/Premium */}
+        {isProOrPremium && (
+          <section className="bg-white rounded-2xl border p-6 shadow">
+            <ProMealBuilder userId={user?.id} />
+          </section>
         )}
       </main>
     </div>
