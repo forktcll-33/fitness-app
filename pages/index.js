@@ -39,7 +39,9 @@ function AnnouncementsBar() {
 
   const current = items[i];
   const shortBody =
-    current.body.length > 170 ? current.body.slice(0, 170) + "…" : current.body;
+    current.body.length > 170
+      ? current.body.slice(0, 170) + "…"
+      : current.body;
 
   const goPrev = () => setI((x) => (x - 1 + items.length) % items.length);
   const goNext = () => setI((x) => (x + 1) % items.length);
@@ -126,35 +128,6 @@ function AnnouncementsBar() {
 export default function Home() {
   return (
     <div dir="rtl" className="bg-gray-50">
-      {/* ✅ هيدر بسيط مع رابط "الاشتراكات" */}
-      <header className="bg-white/90 backdrop-blur border-b">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link href="/" className="text-lg font-extrabold text-green-700">
-            FitLife
-          </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link href="/smart-plan" className="hover:text-green-700">
-              الخطة الذكية
-            </Link>
-            <Link
-              href="/subscriptions"
-              className="font-semibold text-green-700 hover:text-green-900"
-            >
-              الاشتراكات
-            </Link>
-            <Link href="/login" className="hover:text-green-700">
-              تسجيل الدخول
-            </Link>
-            <Link
-              href="/register"
-              className="px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700"
-            >
-              إنشاء حساب
-            </Link>
-          </nav>
-        </div>
-      </header>
-
       {/* ✅ Hero Section (خلفية كاملة) */}
       <section
         className="relative text-white"
@@ -184,10 +157,9 @@ export default function Home() {
                 >
                   ابدأ الآن
                 </Link>
-                {/* 🔥 زر خطط الاشتراك */}
                 <Link
                   href="/subscriptions"
-                  className="px-8 py-4 border border-yellow-300 text-yellow-300 font-semibold rounded-lg shadow hover:bg-white/10 transition"
+                  className="px-8 py-4 border border-yellow-300 text-yellow-300 font-semibold rounded-lg shadow hover:bg-yellow-300 hover:text-green-900 transition"
                 >
                   خطط الاشتراك
                 </Link>
@@ -208,11 +180,17 @@ export default function Home() {
         </div>
         <div className="bg-white rounded-xl shadow p-6 text-center">
           <h3 className="text-xl font-bold text-green-700 mb-3">تمارين مخصصة</h3>
-          <p className="text-gray-600">تمارين تناسب مستوى لياقتك ونشاطك.</p>
+          <p className="text-gray-600">
+            تمارين تناسب مستوى لياقتك ونشاطك.
+          </p>
         </div>
         <div className="bg-white rounded-xl shadow p-6 text-center">
-          <h3 className="text-xl font-bold text-green-700 mb-3">لوحة تحكم سهلة</h3>
-          <p className="text-gray-600">واجهة واضحة لمتابعة تقدمك اليومي.</p>
+          <h3 className="text-xl font-bold text-green-700 mb-3">
+            لوحة تحكم سهلة
+          </h3>
+          <p className="text-gray-600">
+            واجهة واضحة لمتابعة تقدمك اليومي.
+          </p>
         </div>
       </section>
 
@@ -270,8 +248,8 @@ export default function Home() {
               خطط غذائية مخصصة لك
             </h2>
             <p className="text-gray-600 text-lg leading-relaxed">
-              خوارزمية ذكية تحسب سعراتك واحتياجك من البروتين والكربوهيدرات
-              والدهون، ثم تولد لك خطة وجبات سهلة التحضير.
+              خوارزمية ذكية تحسب سعراتك واحتياجك من البروتين
+              والكربوهيدرات والدهون، ثم تولد لك خطة وجبات سهلة التحضير.
             </p>
           </div>
         </div>
@@ -397,7 +375,6 @@ export default function Home() {
                   واتساب: 0532157836
                 </a>
               </li>
-              <li></li>
             </ul>
           </div>
         </div>
@@ -405,9 +382,7 @@ export default function Home() {
           className="border-t text-center text-sm text-gray-500 py-4 space-x-2 space-x-reverse"
           dir="rtl"
         >
-          <span>
-            © {new Date().getFullYear()} جميع الحقوق محفوظة لـ FitLife
-          </span>
+          <span>© {new Date().getFullYear()} جميع الحقوق محفوظة لـ FitLife</span>
           <span>•</span>
           <Link href="/privacy" className="text-green-700 hover:underline">
             سياسة الخصوصية
@@ -417,10 +392,7 @@ export default function Home() {
             الشروط والأحكام
           </Link>
           <span>•</span>
-          <Link
-            href="/refund-policy"
-            className="text-green-700 hover:underline"
-          >
+          <Link href="/refund-policy" className="text-green-700 hover:underline">
             سياسة الاسترجاع
           </Link>
         </div>
