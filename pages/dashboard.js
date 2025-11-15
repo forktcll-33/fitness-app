@@ -234,9 +234,8 @@ export default function Dashboard({ user }) {
                           خطتك الغذائية
                         </p>
                         <p className="text-xs text-gray-500">
-                          يمكنك عرض تفاصيل الخطة بالكامل من صفحة "خطة
-                          التغذية".
-                        </p>
+  يمكنك عرض تفاصيل الخطة بالكامل من صفحة خطة التغذية.
+</p>
                       </div>
                     </div>
                     <div className="text-sm text-gray-700 mt-2">
