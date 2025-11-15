@@ -15,6 +15,7 @@ import {
 import DashboardOverview from "../components/DashboardOverview";
 import WeightProgress from "../components/WeightProgress";
 import WeightChart from "../components/charts/WeightChart";
+
 // ✅ جلب بيانات المستخدم
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
@@ -44,6 +45,7 @@ export async function getServerSideProps({ req }) {
         activityLevel: true,
         goal: true,
         plan: true,
+        subscriptionTier: true, // 👈 مهم: نوع الاشتراك من القاعدة
       },
     });
 
@@ -81,8 +83,18 @@ export default function Dashboard({ user }) {
   };
 
   const plan = safePlan(user.plan);
+
+  // ✅ نحدد نوع الاشتراك
+  const rawTier = (user.subscriptionTier || "basic").toString().toLowerCase();
+  const subscriptionTier = ["basic", "pro", "premium"].includes(rawTier)
+    ? rawTier
+    : "basic";
+  const isProOrPremium =
+    subscriptionTier === "pro" || subscriptionTier === "premium";
+
   // Hotfix: لمنع كراش السيرفر إذا بقيت إشارات لـ data في JSX
   const data = null;
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" dir="rtl">
       {/* ✅ الهيدر */}
@@ -116,20 +128,17 @@ export default function Dashboard({ user }) {
                 }}
                 className="block w-full text-right px-4 py-2 hover:bg-gray-100"
               >
-                التنزيلات              
+                التنزيلات
               </button>
+
+              {/* زر يفتح صفحة خطة التغذية المنفصلة */}
               <button
-               onClick={() => router.push("/dashboard/nutrition")}
-              className="block w-full text-right px-4 py-2 hover:bg-gray-100"
+                onClick={() => router.push("/dashboard/nutrition")}
+                className="block w-full text-right px-4 py-2 hover:bg-gray-100"
               >
                 خطة التغذية
-               </button>
-              <button
-                onClick={() => { setActiveTab("nutrition"); setMenuOpen(false); }}
-               className="block w-full text-right px-4 py-2 hover:bg-gray-100"
->
-               خطة التغذية
               </button>
+
               <button
                 onClick={() => {
                   setActiveTab("profile");
@@ -163,44 +172,123 @@ export default function Dashboard({ user }) {
 
       {/* ✅ المحتوى */}
       <main className="flex-1 p-6">
-      {activeTab === "home" && (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold text-green-600">لوحة التحكم</h2>
-    
-    <WeightChart data={data} />
+        {activeTab === "home" && (
+          <>
+            {isProOrPremium ? (
+              // 🔵 واجهة Pro/Premium الكاملة (نفس اللي عندك تقريباً)
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-green-600">
+                  لوحة التحكم
+                </h2>
 
-    {/* ودجت متابعة الوزن */}
-    <WeightProgress user={user} />
+                {/* مخطط الوزن (لـ Pro/Premium فقط) */}
+                <WeightChart data={data} />
 
-    {/* نظرة عامة احترافية */}
-    <DashboardOverview user={user} plan={plan} />
+                {/* ودجت متابعة الوزن */}
+                <WeightProgress user={user} />
 
-    {/* البطاقات القديمة تبقى كما هي */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="bg-white shadow p-6 rounded-lg">
-        <Salad className="w-8 h-8 text-green-500 mb-2" />
-        <p className="text-gray-600">سعراتك اليومية</p>
-        <p className="text-xl font-bold">
-          {plan ? (plan.calories || "-") : "-"} كالوري
-        </p>
-      </div>
+                {/* نظرة عامة احترافية */}
+                <DashboardOverview user={user} plan={plan} />
 
-      <div className="bg-white shadow p-6 rounded-lg">
-        <Dumbbell className="w-8 h-8 text-blue-500 mb-2" />
-        <p className="text-gray-600">هدفك</p>
-        <p className="text-xl font-bold">{user.goal || "-"}</p>
-      </div>
+                {/* البطاقات القديمة تبقى كما هي */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white shadow p-6 rounded-lg">
+                    <Salad className="w-8 h-8 text-green-500 mb-2" />
+                    <p className="text-gray-600">سعراتك اليومية</p>
+                    <p className="text-xl font-bold">
+                      {plan ? plan.calories || "-" : "-"} كالوري
+                    </p>
+                  </div>
 
-      <div className="bg-white shadow p-6 rounded-lg">
-        <Download className="w-8 h-8 text-purple-500 mb-2" />
-        <p className="text-gray-600">الخطة الغذائية</p>
-        <p className="text-sm">
-          {plan ? `بروتين: ${plan.protein} جم` : "لا توجد بيانات"}
-        </p>
-      </div>
-    </div>
-  </div>
-)}
+                  <div className="bg-white shadow p-6 rounded-lg">
+                    <Dumbbell className="w-8 h-8 text-blue-500 mb-2" />
+                    <p className="text-gray-600">هدفك</p>
+                    <p className="text-xl font-bold">{user.goal || "-"}</p>
+                  </div>
+
+                  <div className="bg-white shadow p-6 rounded-lg">
+                    <Download className="w-8 h-8 text-purple-500 mb-2" />
+                    <p className="text-gray-600">الخطة الغذائية</p>
+                    <p className="text-sm">
+                      {plan
+                        ? `بروتين: ${plan.protein} جم`
+                        : "لا توجد بيانات"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // 🟢 واجهة Basic فقط (بدون متابعة وزن ولا مخططات)
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-green-600">
+                  لوحة التحكم (Basic)
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* بطاقة الخطة الغذائية */}
+                  <div className="bg-white shadow p-6 rounded-lg flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Salad className="w-8 h-8 text-green-500" />
+                      <div>
+                        <p className="text-gray-700 font-semibold">
+                          خطتك الغذائية
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          يمكنك عرض تفاصيل الخطة بالكامل من صفحة "خطة
+                          التغذية".
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-700 mt-2">
+                      {plan ? (
+                        <>
+                          السعرات اليومية:{" "}
+                          <b>{plan.calories || "-"} كالوري</b>
+                          <br />
+                          البروتين: <b>{plan.protein || "-"} جم</b> – الكارب:{" "}
+                          <b>{plan.carbs || "-"} جم</b> – الدهون:{" "}
+                          <b>{plan.fat || "-"} جم</b>
+                        </>
+                      ) : (
+                        "لا توجد بيانات خطة حالياً."
+                      )}
+                    </div>
+                    <button
+                      onClick={() => router.push("/dashboard/nutrition")}
+                      className="mt-3 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"
+                    >
+                      عرض خطة التغذية
+                    </button>
+                  </div>
+
+                  {/* بطاقة خطة التمارين */}
+                  <div className="bg-white shadow p-6 rounded-lg flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Dumbbell className="w-8 h-8 text-blue-500" />
+                      <div>
+                        <p className="text-gray-700 font-semibold">
+                          خطة التمارين
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          يمكنك تحميل ملف التمارين بصيغة PDF واستخدامه مباشرة.
+                        </p>
+                      </div>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                    <a
+                      href="/api/generate-pdf?type=training"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+                    >
+                      تحميل خطة التمارين PDF
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {activeTab === "downloads" && (
           <div>
@@ -223,19 +311,19 @@ export default function Dashboard({ user }) {
                  تحميل الخطة الغذائية PDF
                </a>
                 */}
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-              <a
-                href="/api/generate-pdf?type=training"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center"
-                 >
-                 تحميل خطة التمارين PDF
-                  </a>
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                <a
+                  href="/api/generate-pdf?type=training"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center"
+                >
+                  تحميل خطة التمارين PDF
+                </a>
               </div>
             </div>
           </div>
-        )}       
+        )}
 
         {activeTab === "profile" && (
           <div>
@@ -251,6 +339,7 @@ export default function Dashboard({ user }) {
               <p>الجنس: {user.gender || "-"}</p>
               <p>النشاط: {user.activityLevel || "-"}</p>
               <p>الهدف: {user.goal || "-"}</p>
+              <p>نوع الاشتراك: {subscriptionTier}</p>
             </div>
           </div>
         )}
