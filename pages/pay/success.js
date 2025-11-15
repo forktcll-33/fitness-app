@@ -1,3 +1,4 @@
+// pages/pay/success.js
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
@@ -11,6 +12,7 @@ export default function PaySuccess() {
 
     let canceled = false;
     let timerId = null;
+    let hardTimeoutId = null;
 
     // 1) اجلب رقم الفاتورة من الـ query أو التخزين المحلي
     const q = router.query || {};
@@ -22,7 +24,9 @@ export default function PaySuccess() {
 
     if (invId) {
       setInvoiceId(String(invId));
-      try { localStorage.setItem("pay_inv", String(invId)); } catch {}
+      try {
+        localStorage.setItem("pay_inv", String(invId));
+      } catch {}
     }
 
     // 2) إن لم يوجد رقم فاتورة (يحدث أحيانًا)، حوّل مباشرة
@@ -31,6 +35,16 @@ export default function PaySuccess() {
       router.replace("/dashboard?paid=1");
       return;
     }
+
+    // ✅ مهلة قصوى: حتى لو صار أي خلل في verifyLoop، نحول بعد 20 ثانية كحد أقصى
+    hardTimeoutId = setTimeout(() => {
+      if (canceled) return;
+      setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
+      try {
+        localStorage.removeItem("pay_inv");
+      } catch {}
+      router.replace("/dashboard?paid=1");
+    }, 20000);
 
     // 3) التحقق المتكرر مع Backoff خفيف
     let attempts = 0;
@@ -41,19 +55,30 @@ export default function PaySuccess() {
       attempts += 1;
 
       try {
-        const res = await fetch(`/api/pay/verify?id=${encodeURIComponent(invId)}`, {
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
+        const res = await fetch(
+          `/api/pay/verify?id=${encodeURIComponent(invId)}`,
+          {
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          }
+        );
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data?.ok && data?.status === "paid") {
           if (canceled) return;
           setMsg("تم الدفع وتفعيل الاشتراك ✅ سيتم تحويلك الآن…");
-          try { localStorage.removeItem("pay_inv"); } catch {}
+          try {
+            localStorage.removeItem("pay_inv");
+          } catch {}
 
           // محاولة توليد الخطة (لا توقف التحويل لو فشلت)
-          fetch("/api/plan/generate", { method: "POST", credentials: "include" }).catch(() => {});
+          fetch("/api/plan/generate", {
+            method: "POST",
+            credentials: "include",
+          }).catch(() => {});
+
+          // نلغي المهلة القصوى لأن كل شيء تمام
+          if (hardTimeoutId) clearTimeout(hardTimeoutId);
 
           router.replace("/dashboard?paid=1");
           return;
@@ -68,6 +93,7 @@ export default function PaySuccess() {
           timerId = setTimeout(verifyLoop, delay);
         } else {
           setMsg("تم الدفع. سيتم تحويلك الآن…");
+          if (hardTimeoutId) clearTimeout(hardTimeoutId);
           router.replace("/dashboard?paid=1");
         }
       }
@@ -80,11 +106,15 @@ export default function PaySuccess() {
     return () => {
       canceled = true;
       if (timerId) clearTimeout(timerId);
+      if (hardTimeoutId) clearTimeout(hardTimeoutId);
     };
-  }, [router.isReady]);
+  }, [router.isReady, router.query]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-2 px-4" dir="rtl">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-2 px-4"
+      dir="rtl"
+    >
       <p className="text-lg">{msg}</p>
       {invoiceId ? (
         <p className="text-sm text-gray-600">
