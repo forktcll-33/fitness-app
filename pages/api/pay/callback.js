@@ -3,7 +3,7 @@ import prisma from "../../../lib/prisma";
 
 export const config = {
   api: {
-    bodyParser: false, // ميسر قد ترسل JSON أو x-www-form-urlencoded
+    bodyParser: false, // ميسّر قد ترسل JSON أو x-www-form-urlencoded
   },
 };
 
@@ -23,9 +23,7 @@ export default async function handler(req, res) {
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret)
-      return res
-        .status(500)
-        .json({ error: "Missing MOYASAR_SECRET_KEY" });
+      return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
 
     // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
     const raw = await readBody(req);
@@ -52,14 +50,11 @@ export default async function handler(req, res) {
       body?.invoice?.id ||
       body?.data?.id;
 
-    if (!id)
-      return res.status(400).json({ error: "invoice id مطلوب" });
+    if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
-    // ✅ تحقّق من الفاتورة من ميسر باستخدام SECRET
+    // ✅ تحقّق من الفاتورة من ميسّر باستخدام SECRET
     const resp = await fetch(
-      `https://api.moyasar.com/v1/invoices/${encodeURIComponent(
-        id
-      )}`,
+      `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
         headers: {
           Authorization:
@@ -72,39 +67,34 @@ export default async function handler(req, res) {
     const inv = await resp.json();
     if (!resp.ok) {
       console.error("callback verify error:", inv);
-      return res.status(400).json({
-        error: inv?.message || "تعذر التحقق من الفاتورة",
-      });
+      return res
+        .status(400)
+        .json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
     }
 
     const invoiceId = inv?.id || id;
     const isPaid = inv?.status === "paid";
-    const amountCents =
-      Number.isFinite(+inv?.amount)
-        ? +inv.amount
-        : Number.isFinite(+inv?.amount_cents)
-        ? +inv.amount_cents
-        : undefined;
+    const amountCents = Number.isFinite(+inv?.amount)
+      ? +inv.amount
+      : Number.isFinite(+inv?.amount_cents)
+      ? +inv.amount_cents
+      : undefined;
     const currency = inv?.currency || undefined;
     const metaEmail =
-      inv?.metadata?.customer_email ||
-      inv?.metadata?.email ||
-      null;
+      inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // 👇 هنا نقرأ نوع الاشتراك من الـ metadata اللي أرسلناها في create-invoice
-    const metaTierRaw =
-      inv?.metadata?.subscription_tier ||
-      inv?.metadata?.subscriptionTier ||
-      inv?.metadata?.tier ||
-      null;
+    // 👈 هنا نقرأ نوع الاشتراك اللي أرسلناه في create-invoice
+    const metaTier =
+      (inv?.metadata?.subscription_tier ||
+        inv?.metadata?.tier ||
+        ""
+      )
+        .toString()
+        .toLowerCase() || "basic";
 
-    let subscriptionTier = undefined;
-    if (typeof metaTierRaw === "string") {
-      const t = metaTierRaw.toLowerCase();
-      if (["basic", "pro", "premium"].includes(t)) {
-        subscriptionTier = t;
-      }
-    }
+    const normalizedTier = ["basic", "pro", "premium"].includes(metaTier)
+      ? metaTier
+      : "basic";
 
     // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
     let order = null;
@@ -132,28 +122,25 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // ✅ فعّل الاشتراك + حدّث نوع الخطة لو الفاتورة مدفوعة
-    if (isPaid && targetUserId) {
-      const updateData = {
-        isSubscribed: true,
-      };
-
-      if (subscriptionTier) {
-        updateData.subscriptionTier = subscriptionTier; // 👈 هنا المهم
-      }
-
+    // ✅ فعّل الاشتراك + خزّن نوع الخطة في جدول User
+    if (targetUserId) {
       await prisma.user.update({
         where: { id: Number(targetUserId) },
-        data: updateData,
+        data: {
+          isSubscribed: isPaid,
+          subscriptionTier: normalizedTier, // 👈 هنا نربط basic / pro / premium
+        },
       });
 
       console.log(
-        "CALLBACK → PAID ✅ USER:",
+        "CALLBACK → USER UPDATED",
         targetUserId,
-        "INVOICE:",
-        invoiceId,
+        "PAID:",
+        isPaid,
         "TIER:",
-        subscriptionTier || "unchanged"
+        normalizedTier,
+        "INVOICE:",
+        invoiceId
       );
     }
 
