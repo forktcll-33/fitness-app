@@ -23,7 +23,9 @@ export default async function handler(req, res) {
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret)
-      return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
+      return res
+        .status(500)
+        .json({ error: "Missing MOYASAR_SECRET_KEY" });
 
     // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
     const raw = await readBody(req);
@@ -50,11 +52,14 @@ export default async function handler(req, res) {
       body?.invoice?.id ||
       body?.data?.id;
 
-    if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
+    if (!id)
+      return res.status(400).json({ error: "invoice id مطلوب" });
 
     // ✅ تحقّق من الفاتورة من ميسر باستخدام SECRET
     const resp = await fetch(
-      `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
+      `https://api.moyasar.com/v1/invoices/${encodeURIComponent(
+        id
+      )}`,
       {
         headers: {
           Authorization:
@@ -67,60 +72,39 @@ export default async function handler(req, res) {
     const inv = await resp.json();
     if (!resp.ok) {
       console.error("callback verify error:", inv);
-      return res
-        .status(400)
-        .json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
+      return res.status(400).json({
+        error: inv?.message || "تعذر التحقق من الفاتورة",
+      });
     }
-
-    console.log("MOYASAR INVOICE FULL:", {
-      id: inv?.id,
-      status: inv?.status,
-      amount: inv?.amount,
-      currency: inv?.currency,
-      metadata: inv?.metadata,
-      description: inv?.description,
-    });
 
     const invoiceId = inv?.id || id;
     const isPaid = inv?.status === "paid";
-    const amountCents = Number.isFinite(+inv?.amount)
-      ? +inv.amount
-      : Number.isFinite(+inv?.amount_cents)
-      ? +inv.amount_cents
-      : undefined;
+    const amountCents =
+      Number.isFinite(+inv?.amount)
+        ? +inv.amount
+        : Number.isFinite(+inv?.amount_cents)
+        ? +inv.amount_cents
+        : undefined;
     const currency = inv?.currency || undefined;
     const metaEmail =
-      inv?.metadata?.customer_email || inv?.metadata?.email || null;
+      inv?.metadata?.customer_email ||
+      inv?.metadata?.email ||
+      null;
 
-    // 👈 محاولة أولى: نقرأ نوع الاشتراك من الميتاداتا
-    let subscriptionTier = null;
-    const metaTierRaw = inv?.metadata?.subscription_tier || null;
-    if (metaTierRaw) {
-      const t = String(metaTierRaw).toLowerCase();
+    // 👇 هنا نقرأ نوع الاشتراك من الـ metadata اللي أرسلناها في create-invoice
+    const metaTierRaw =
+      inv?.metadata?.subscription_tier ||
+      inv?.metadata?.subscriptionTier ||
+      inv?.metadata?.tier ||
+      null;
+
+    let subscriptionTier = undefined;
+    if (typeof metaTierRaw === "string") {
+      const t = metaTierRaw.toLowerCase();
       if (["basic", "pro", "premium"].includes(t)) {
         subscriptionTier = t;
       }
     }
-
-    // 👈 محاولة ثانية: نستنتج نوع الخطة من السعر
-    // الأسعار عندنا: basic = 10 ريال = 1000 هللة
-    //                 pro   = 29 ريال = 2900 هللة
-    //                 premium = 49 ريال = 4900 هللة
-    if (!subscriptionTier && Number.isFinite(amountCents)) {
-      if (amountCents === 1000) subscriptionTier = "basic";
-      else if (amountCents === 2900) subscriptionTier = "pro";
-      else if (amountCents === 4900) subscriptionTier = "premium";
-    }
-
-    // 👈 محاولة ثالثة: من الوصف إذا فيه كلمة Pro / Premium
-    if (!subscriptionTier && typeof inv?.description === "string") {
-      const desc = inv.description.toLowerCase();
-      if (desc.includes("premium")) subscriptionTier = "premium";
-      else if (desc.includes("pro")) subscriptionTier = "pro";
-      else if (desc.includes("basic")) subscriptionTier = "basic";
-    }
-
-    console.log("DEDUCED TIER:", subscriptionTier, "AMOUNT:", amountCents);
 
     // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
     let order = null;
@@ -148,13 +132,14 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // ✅ فعّل الاشتراك إن كانت مدفوعة + حدّث نوع الخطة لو متوفر
+    // ✅ فعّل الاشتراك + حدّث نوع الخطة لو الفاتورة مدفوعة
     if (isPaid && targetUserId) {
       const updateData = {
         isSubscribed: true,
       };
+
       if (subscriptionTier) {
-        updateData.subscriptionTier = subscriptionTier;
+        updateData.subscriptionTier = subscriptionTier; // 👈 هنا المهم
       }
 
       await prisma.user.update({
@@ -168,7 +153,7 @@ export default async function handler(req, res) {
         "INVOICE:",
         invoiceId,
         "TIER:",
-        subscriptionTier || "(unchanged)"
+        subscriptionTier || "unchanged"
       );
     }
 
