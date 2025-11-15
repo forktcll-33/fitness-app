@@ -74,9 +74,8 @@ function solveAmountForTarget(targetMacroGrams, foodKey, category) {
   if (item.unit === "piece") {
     const density = item.macrosPerUnit?.[mainKey] || 0;
     if (!density) return null;
-    // نستخدم floor عشان ما نتجاوز الهدف قدر الإمكان (مع حبات يمكن نكون أقل من الهدف)
     let pieces = Math.floor(targetMacroGrams / density);
-    if (pieces < 1) pieces = 1; // على الأقل حبة واحدة
+    if (pieces < 1) pieces = 1;
     return { type: "piece", amount: pieces };
   }
 
@@ -84,11 +83,7 @@ function solveAmountForTarget(targetMacroGrams, foodKey, category) {
   const density = item.macros100?.[mainKey] || 0;
   if (!density) return null;
 
-  // x غ تعطي: density * x / 100
-  // نريد <= targetMacroGrams → x <= (targetMacroGrams / density) * 100
   let grams = (targetMacroGrams / density) * 100;
-  // ما نخليها أرقام مجنونة
-  // نطاقات تقريبية منطقية
   const ranges = {
     protein: [60, 220],
     carbs: [40, 300],
@@ -97,7 +92,6 @@ function solveAmountForTarget(targetMacroGrams, foodKey, category) {
   const [minG, maxG] = ranges[category] || [5, 500];
   grams = Math.max(minG, Math.min(maxG, grams));
 
-  // تقريب لأقرب 5غ
   grams = Math.floor(grams / 5) * 5;
   if (grams < minG) grams = minG;
 
@@ -156,7 +150,6 @@ function MealCard({
                   : "مصدر الدهون"}
               </div>
 
-              {/* قائمة الاختيار */}
               <select
                 className="w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                 value={sel?.foodKey || ""}
@@ -170,7 +163,6 @@ function MealCard({
                 ))}
               </select>
 
-              {/* المعاينة */}
               {sel && sel.macros ? (
                 <div className="rounded-lg border bg-gray-50 px-2.5 py-2 text-[11px] leading-5">
                   <div className="font-semibold text-gray-800 mb-0.5">
@@ -185,7 +177,14 @@ function MealCard({
                   </div>
                   <div className="mt-1 text-[10px] text-gray-500">
                     الهدف لهذا الصنف:{" "}
-                    <b>{mealTargets[mainKey]}غ {mainKey === "protein" ? "بروتين" : mainKey === "carbs" ? "كارب" : "دهون"}</b>
+                    <b>
+                      {mealTargets[mainKey]}غ{" "}
+                      {mainKey === "protein"
+                        ? "بروتين"
+                        : mainKey === "carbs"
+                        ? "كارب"
+                        : "دهون"}
+                    </b>
                   </div>
                 </div>
               ) : (
@@ -206,12 +205,12 @@ export default function ProMealBuilder({
   protein,
   carbs,
   fat,
-  subscription, // "basic" | "pro" | "premium"
+  subscription, // باقي هنا للتوافق، لكن ما نعتمد عليه الآن
 }) {
-  const isPro =
-    subscription === "pro" || subscription === "premium";
+  // بما أن عرض هذا الكومبوننت يتم حاليًا فقط لمشتركي Pro/Premium في الداشبورد،
+  // نخليه دائمًا مفعّل هنا.
+  const isPro = true;
 
-  // نحسب أهداف كل وجبة حسب التوزيع
   const mealTargets = useMemo(() => {
     return MEAL_SPLIT.map((ratio) => ({
       calories: Math.round(calories * ratio),
@@ -238,7 +237,6 @@ export default function ProMealBuilder({
         if (idx !== mealIndex) return meal;
 
         if (!foodKey) {
-          // إلغاء الاختيار
           return {
             ...meal,
             selections: {
@@ -261,10 +259,7 @@ export default function ProMealBuilder({
           return meal;
         }
 
-        const amount =
-          amountSolution.type === "piece"
-            ? amountSolution.amount
-            : amountSolution.amount;
+        const amount = amountSolution.amount;
 
         const macros = macrosForItem(
           foodKey,
@@ -285,8 +280,6 @@ export default function ProMealBuilder({
     );
   };
 
-  // ملخص عام (اختياري – للتطوير لاحقًا: جمع ما تم اختياره ومقارنته باليومي)
-  // الآن نخليه بسيط: بس نعرض تنبيه أن هذا محرر Pro
   return (
     <section className="bg-white/60 rounded-2xl border p-4 md:p-6 shadow space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -303,24 +296,12 @@ export default function ProMealBuilder({
         <div className="rounded-xl border bg-gray-50 px-3 py-2 text-[11px] md:text-xs text-gray-700">
           <div className="font-semibold mb-0.5">ملخّص يومي</div>
           <div>السعرات: <b>{calories}</b></div>
-          <div>البروتين: <b>{protein}غ</b> — الكارب: <b>{carbs}غ</b> — الدهون: <b>{fat}غ</b></div>
-        </div>
-      </div>
-
-      {!isPro && (
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px]" />
-          <div className="rounded-2xl border-2 border-dashed border-gray-300 p-4 text-center text-xs md:text-sm text-gray-600 relative z-0">
-            <div className="text-base md:text-lg font-bold text-gray-800 mb-1">
-              هذه الميزة متاحة لمشتركي Pro فقط
-            </div>
-            <p>
-              يمكنك ترقية اشتراكك للاستفادة من مُحرّر الوجبات الذكي
-              وتخصيص كل وجبة حسب الأطعمة المفضّلة لديك مع حساب تلقائي للكميات.
-            </p>
+          <div>
+            البروتين: <b>{protein}غ</b> — الكارب: <b>{carbs}غ</b> — الدهون:{" "}
+            <b>{fat}غ</b>
           </div>
         </div>
-      )}
+      </div>
 
       {/* بطاقات الوجبات */}
       <div className={`${!isPro ? "opacity-60" : ""} space-y-3`}>

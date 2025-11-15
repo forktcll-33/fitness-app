@@ -317,7 +317,8 @@ export default function NutritionPlan({ plan, allowSwap = true }) {
 
         {!allowSwap && (
           <p className="text-xs text-gray-400 mt-3">
-            🔒 الاستبدال متاح في اشتراك <span className="font-semibold">Pro</span> وما فوق.
+            🔒 الاستبدال متاح في اشتراك{" "}
+            <span className="font-semibold">Pro</span> وما فوق.
           </p>
         )}
       </section>

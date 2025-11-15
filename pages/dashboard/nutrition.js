@@ -43,7 +43,9 @@ export async function getServerSideProps({ req }) {
     }
 
     // 👈 نستخدم الخطة المحفوظة في قاعدة البيانات
-    const rawTier = (user.subscriptionTier || "basic").toString().toLowerCase();
+    const rawTier = (user.subscriptionTier || "basic")
+      .toString()
+      .toLowerCase();
     const tier = ["basic", "pro", "premium"].includes(rawTier)
       ? rawTier
       : "basic";
@@ -99,7 +101,13 @@ export default function NutritionPage({ user, plan, tier }) {
         {/* باني الوجبات — فقط Pro/Premium */}
         {isProOrPremium && (
           <section className="bg-white rounded-2xl border p-6 shadow">
-            <ProMealBuilder userId={user?.id} />
+            <ProMealBuilder
+              calories={plan?.calories ?? 0}
+              protein={plan?.protein ?? 0}
+              carbs={plan?.carbs ?? 0}
+              fat={plan?.fat ?? 0}
+              subscription={currentTier}
+            />
           </section>
         )}
       </main>
