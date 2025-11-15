@@ -1,9 +1,10 @@
 // pages/api/pay/callback.js
 import prisma from "../../../lib/prisma";
+import crypto from "crypto";
 
 export const config = {
   api: {
-    bodyParser: false, // ميسّر قد ترسل JSON أو x-www-form-urlencoded
+    bodyParser: false,
   },
 };
 
@@ -15,34 +16,47 @@ async function readBody(req) {
   });
 }
 
+function verifySignature(secret, rawBody, received) {
+  if (!secret || !received) return false;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  return expected === received;
+}
+
 export default async function handler(req, res) {
-  console.log("MOYASAR CALLBACK HIT", req.method, req.headers["user-agent"]);
+  console.log("MOYASAR CALLBACK HIT");
+
   if (req.method !== "POST")
     return res.status(405).json({ error: "Method not allowed" });
 
+  const webhookSecret = process.env.MOYASAR_WEBHOOK_SECRET;
+  const apiSecret = process.env.MOYASAR_SECRET_KEY;
+
+  if (!webhookSecret || !apiSecret) {
+    console.error("❌ Missing secrets");
+    return res.status(500).json({ error: "Missing secrets" });
+  }
+
   try {
-    const secret = process.env.MOYASAR_SECRET_KEY;
-    if (!secret)
-      return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
-
-    // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
     const raw = await readBody(req);
-    let body = null;
+    const signature = req.headers["moyasar-signature"];
 
-    // جرّب JSON
+    // 💥 تحقق من التوقيع
+    if (!verifySignature(webhookSecret, raw, signature)) {
+      console.error("❌ Invalid webhook signature");
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    let body = {};
     try {
       body = JSON.parse(raw);
     } catch {
-      // جرّب form-encoded
-      try {
-        const params = new URLSearchParams(raw);
-        body = Object.fromEntries(params.entries());
-      } catch {
-        body = {};
-      }
+      const params = new URLSearchParams(raw);
+      body = Object.fromEntries(params.entries());
     }
 
-    // التقط id من أي مكان ممكن
     let id =
       req.query?.id ||
       body?.id ||
@@ -52,13 +66,13 @@ export default async function handler(req, res) {
 
     if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
-    // ✅ تحقّق من الفاتورة من ميسّر باستخدام SECRET
+    // 🔍 نتحقق من الفاتورة من API ميسر
     const resp = await fetch(
       `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
         headers: {
           Authorization:
-            "Basic " + Buffer.from(`${secret}:`).toString("base64"),
+            "Basic " + Buffer.from(`${apiSecret}:`).toString("base64"),
           Accept: "application/json",
         },
       }
@@ -66,87 +80,61 @@ export default async function handler(req, res) {
 
     const inv = await resp.json();
     if (!resp.ok) {
-      console.error("callback verify error:", inv);
-      return res
-        .status(400)
-        .json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
+      console.error("❌ Error verifying invoice:", inv);
+      return res.status(400).json({ error: "تعذر التحقق من الفاتورة" });
     }
 
-    const invoiceId = inv?.id || id;
-    const isPaid = inv?.status === "paid";
-    const amountCents = Number.isFinite(+inv?.amount)
-      ? +inv.amount
-      : Number.isFinite(+inv?.amount_cents)
-      ? +inv.amount_cents
-      : undefined;
-    const currency = inv?.currency || undefined;
-    const metaEmail =
-      inv?.metadata?.customer_email || inv?.metadata?.email || null;
-
-    // 👈 هنا نقرأ نوع الاشتراك اللي أرسلناه في create-invoice
+    const invoiceId = inv.id;
+    const isPaid = inv.status === "paid";
     const metaTier =
       (inv?.metadata?.subscription_tier ||
         inv?.metadata?.tier ||
-        ""
-      )
+        "basic")
         .toString()
-        .toLowerCase() || "basic";
+        .toLowerCase();
 
     const normalizedTier = ["basic", "pro", "premium"].includes(metaTier)
       ? metaTier
       : "basic";
 
-    // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
-    let order = null;
-    try {
-      order = await prisma.order.update({
-        where: { invoiceId },
-        data: {
-          status: isPaid ? "paid" : inv?.status || "unknown",
-          finalAmount: amountCents ?? undefined,
-          currency: currency ?? undefined,
-        },
-      });
-    } catch {
-      order = await prisma.order
-        .findUnique({ where: { invoiceId } })
-        .catch(() => null);
+    const metaEmail =
+      inv?.metadata?.customer_email || inv?.metadata?.email || null;
+
+    // نجرب نجيب الطلب
+    let order = await prisma.order
+      .findUnique({ where: { invoiceId } })
+      .catch(() => null);
+
+    // نحصل المستخدم
+    let userId = order?.userId ? Number(order.userId) : undefined;
+    if (!userId && metaEmail) {
+      const u = await prisma.user.findUnique({ where: { email: metaEmail } });
+      if (u) userId = u.id;
     }
 
-    // 🔎 حاول ربط المستخدم: أولاً من الطلب، ثم من البريد الموجود في الـ metadata
-    let targetUserId = order?.userId ? Number(order.userId) : undefined;
-    if (!targetUserId && metaEmail) {
-      const u = await prisma.user
-        .findUnique({ where: { email: metaEmail } })
-        .catch(() => null);
-      if (u) targetUserId = u.id;
-    }
-
-    // ✅ فعّل الاشتراك + خزّن نوع الخطة في جدول User
-    if (targetUserId) {
+    // نحدّث الاشتراك للمستخدم
+    if (userId) {
       await prisma.user.update({
-        where: { id: Number(targetUserId) },
+        where: { id: userId },
         data: {
           isSubscribed: isPaid,
-          subscriptionTier: normalizedTier, // 👈 هنا نربط basic / pro / premium
+          subscriptionTier: normalizedTier,
         },
       });
 
       console.log(
-        "CALLBACK → USER UPDATED",
-        targetUserId,
+        "✅ USER UPDATED:",
+        userId,
         "PAID:",
         isPaid,
         "TIER:",
-        normalizedTier,
-        "INVOICE:",
-        invoiceId
+        normalizedTier
       );
     }
 
     return res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error("callback fatal:", e);
-    return res.status(500).json({ error: "Server error" });
+  } catch (err) {
+    console.error("callback fatal:", err);
+    return res.status(500).json({ error: "server error" });
   }
 }
