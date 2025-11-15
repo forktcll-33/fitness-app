@@ -17,18 +17,24 @@ async function readBody(req) {
 
 export default async function handler(req, res) {
   console.log("MOYASAR CALLBACK HIT", req.method, req.headers["user-agent"]);
-  if (req.method !== "POST")
-    return res.status(405).json({ error: "Method not allowed" });
+
+  if (req.method !== "POST") {
+    // الميثود غلط، بس نرجّع 200 عشان ما يكسر الويب هوك
+    return res.status(200).json({ ok: false, note: "wrong method" });
+  }
 
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
-    if (!secret)
-      return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
+    if (!secret) {
+      console.error("Missing MOYASAR_SECRET_KEY");
+      return res.status(200).json({ ok: false, error: "missing secret" });
+    }
 
-    // ✅ نقرأ الـ body يدويًا (JSON أو x-www-form-urlencoded)
+    // نقرأ البودي (بس عشان نسجّله في اللوق لو احتجناه)
     const raw = await readBody(req);
-    let body = null;
+    console.log("MOYASAR RAW BODY:", raw);
 
+    let body = {};
     try {
       body = JSON.parse(raw);
     } catch {
@@ -40,7 +46,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // التقط id من أي مكان ممكن
+    // نلتقط رقم الفاتورة من أي مكان ممكن
     let id =
       req.query?.id ||
       body?.id ||
@@ -48,9 +54,13 @@ export default async function handler(req, res) {
       body?.invoice?.id ||
       body?.data?.id;
 
-    if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
+    if (!id) {
+      console.error("NO INVOICE ID IN CALLBACK", body);
+      // برضه نرجع 200 عشان ميسر ما تعيد الويب هوك بلا نهاية
+      return res.status(200).json({ ok: false, note: "no invoice id" });
+    }
 
-    // ✅ تحقّق من الفاتورة من ميسّر باستخدام SECRET
+    // نتحقق من الفاتورة من ميسّر باستخدام secret key
     const resp = await fetch(
       `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
@@ -63,25 +73,29 @@ export default async function handler(req, res) {
     );
 
     const inv = await resp.json();
+    console.log("MOYASAR VERIFY RESULT:", inv);
+
     if (!resp.ok) {
       console.error("callback verify error:", inv);
       return res
-        .status(400)
-        .json({ error: inv?.message || "تعذر التحقق من الفاتورة" });
+        .status(200)
+        .json({ ok: false, note: "verify failed", inv });
     }
 
     const invoiceId = inv?.id || id;
     const isPaid = inv?.status === "paid";
+
     const amountCents = Number.isFinite(+inv?.amount)
       ? +inv.amount
       : Number.isFinite(+inv?.amount_cents)
       ? +inv.amount_cents
       : undefined;
+
     const currency = inv?.currency || undefined;
     const metaEmail =
       inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // 👈 نقرأ نوع الاشتراك اللي أرسلناه في create-invoice
+    // نوع الاشتراك من الميتاداتا
     const metaTier =
       (inv?.metadata?.subscription_tier ||
         inv?.metadata?.tier ||
@@ -94,7 +108,7 @@ export default async function handler(req, res) {
       ? metaTier
       : "basic";
 
-    // ✅ حدّث الطلب داخلياً، أو اجلبه إن لم يوجد
+    // نحدّث الطلب في قاعدة البيانات
     let order = null;
     try {
       order = await prisma.order.update({
@@ -105,13 +119,14 @@ export default async function handler(req, res) {
           currency: currency ?? undefined,
         },
       });
-    } catch {
+    } catch (e) {
+      console.warn("Order update failed, trying find:", e);
       order = await prisma.order
         .findUnique({ where: { invoiceId } })
         .catch(() => null);
     }
 
-    // 🔎 حاول ربط المستخدم: أولاً من الطلب، ثم من البريد الموجود في الـ metadata
+    // نحاول نلقى المستخدم
     let targetUserId = order?.userId ? Number(order.userId) : undefined;
     if (!targetUserId && metaEmail) {
       const u = await prisma.user
@@ -120,7 +135,7 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // ✅ فعّل الاشتراك + خزّن نوع الخطة في جدول User
+    // نفعّل الاشتراك + نحدد نوع الخطة
     if (targetUserId) {
       await prisma.user.update({
         where: { id: Number(targetUserId) },
@@ -140,11 +155,14 @@ export default async function handler(req, res) {
         "INVOICE:",
         invoiceId
       );
+    } else {
+      console.warn("CALLBACK → NO USER FOUND FOR INVOICE", invoiceId);
     }
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, paid: isPaid, tier: normalizedTier });
   } catch (e) {
     console.error("callback fatal:", e);
-    return res.status(500).json({ error: "Server error" });
+    // برضه 200 عشان ميسر ما تعيد الطلب بلا نهاية
+    return res.status(200).json({ ok: false, error: "server error" });
   }
 }
