@@ -7,21 +7,32 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
 
   const secret = process.env.MOYASAR_SECRET_KEY;
-  if (!secret) return res.status(500).json({ error: "Missing MOYASAR_SECRET_KEY" });
+  if (!secret)
+    return res
+      .status(500)
+      .json({ error: "Missing MOYASAR_SECRET_KEY" });
 
   try {
     // ✅ جلب الفاتورة من ميسّر
-    const resp = await fetch(`https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`, {
-      headers: {
-        Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
-        Accept: "application/json",
-      },
-    });
+    const resp = await fetch(
+      `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
+      {
+        headers: {
+          Authorization:
+            "Basic " + Buffer.from(`${secret}:`).toString("base64"),
+          Accept: "application/json",
+        },
+      }
+    );
     const json = await resp.json();
 
     if (!resp.ok) {
       console.error("verify error:", json);
-      return res.status(400).json({ error: json?.message || "تعذر التحقق من الفاتورة" });
+      return res
+        .status(400)
+        .json({
+          error: json?.message || "تعذر التحقق من الفاتورة",
+        });
     }
 
     const invoiceId = json?.id || id;
@@ -29,11 +40,23 @@ export default async function handler(req, res) {
     const paid = status === "paid";
 
     const paidAmount =
-      Number.isFinite(+json?.amount) ? +json.amount :
-      Number.isFinite(+json?.amount_cents) ? +json.amount_cents :
-      undefined;
+      Number.isFinite(+json?.amount)
+        ? +json.amount
+        : Number.isFinite(+json?.amount_cents)
+        ? +json.amount_cents
+        : undefined;
 
     const paidCurrency = json?.currency || undefined;
+
+    // ✅ استخراج نوع الخطة من metadata (مثل callback)
+    const metaTierRaw =
+      (json?.metadata?.subscription_tier ||
+        json?.metadata?.tier ||
+        "") + "";
+    const metaTier = metaTierRaw.toLowerCase();
+    const normalizedTier = ["basic", "pro", "premium"].includes(metaTier)
+      ? metaTier
+      : "basic";
 
     // ✅ استخراج المستخدم من الكوكي
     let userIdFromCookie = null;
@@ -46,7 +69,9 @@ export default async function handler(req, res) {
     const metaEmail = json?.metadata?.customer_email;
 
     // ✅ البحث عن الطلب في قاعدة البيانات
-    let order = await prisma.order.findUnique({ where: { invoiceId } }).catch(() => null);
+    let order = await prisma.order
+      .findUnique({ where: { invoiceId } })
+      .catch(() => null);
 
     if (!order) {
       order = await prisma.order.create({
@@ -57,6 +82,7 @@ export default async function handler(req, res) {
           finalAmount: paidAmount ?? 0,
           currency: paidCurrency || "SAR",
           status: paid ? "paid" : status,
+          // ما نحفظ tier هنا، نخليه في user
         },
       });
     } else {
@@ -73,24 +99,35 @@ export default async function handler(req, res) {
     // ✅ تحديد المستخدم الذي سيفعل له الاشتراك
     let targetUserId = userIdFromCookie;
 
-    if (!targetUserId && order?.userId) targetUserId = Number(order.userId);
+    if (!targetUserId && order?.userId)
+      targetUserId = Number(order.userId);
 
     if (!targetUserId && metaEmail) {
-      const u = await prisma.user.findUnique({ where: { email: metaEmail } }).catch(() => null);
+      const u = await prisma.user
+        .findUnique({ where: { email: metaEmail } })
+        .catch(() => null);
       if (u) targetUserId = u.id;
     }
 
-    // ✅ تفعيل الاشتراك
+    // ✅ تفعيل الاشتراك + تخزين نوع الخطة زي callback
     if (paid && targetUserId) {
       await prisma.user.update({
         where: { id: targetUserId },
         data: {
           isSubscribed: true,
           subscriptionAt: new Date(),
+          subscriptionTier: normalizedTier, // 👈 هنا الفرق
         },
       });
 
-      console.log("VERIFY → PAID ✅ USER:", targetUserId, "INVOICE:", invoiceId);
+      console.log(
+        "VERIFY → PAID ✅ USER:",
+        targetUserId,
+        "INVOICE:",
+        invoiceId,
+        "TIER:",
+        normalizedTier
+      );
     }
 
     return res.status(200).json({
@@ -99,6 +136,7 @@ export default async function handler(req, res) {
       invoiceId,
       amount: paidAmount,
       currency: paidCurrency,
+      tier: normalizedTier,
       error: paid ? null : "الفاتورة غير مدفوعة",
     });
   } catch (e) {

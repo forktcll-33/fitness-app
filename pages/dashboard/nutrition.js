@@ -17,7 +17,7 @@ export async function getServerSideProps({ req }) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 🔥 نقرأ الخطة مباشرة من قاعدة البيانات وليس من التوكن
+    // نقرأ الخطة ونوع الاشتراك من قاعدة البيانات
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
       select: {
@@ -32,7 +32,6 @@ export async function getServerSideProps({ req }) {
     if (!user)
       return { redirect: { destination: "/login", permanent: false } };
 
-    // الخطة قد تكون JSON أو string → نحولها ل JSON
     let plan = user.plan;
     if (typeof plan === "string") {
       try {
@@ -42,7 +41,6 @@ export async function getServerSideProps({ req }) {
       }
     }
 
-    // 👈 نستخدم الخطة المحفوظة في قاعدة البيانات
     const rawTier = (user.subscriptionTier || "basic")
       .toString()
       .toLowerCase();
@@ -68,7 +66,14 @@ export async function getServerSideProps({ req }) {
 
 export default function NutritionPage({ user, plan, tier }) {
   const currentTier = tier || "basic";
-  const isProOrPremium = currentTier === "pro" || currentTier === "premium";
+  const isProOrPremium =
+    currentTier === "pro" || currentTier === "premium";
+
+  // نقرأ الماكروز من الخطة (نستخدمها في محرّر البرو)
+  const calories = Number(plan?.calories || 0);
+  const protein = Number(plan?.protein || 0);
+  const carbs = Number(plan?.carbs || 0);
+  const fat = Number(plan?.fat || 0);
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -92,23 +97,33 @@ export default function NutritionPage({ user, plan, tier }) {
       </header>
 
       <main className="p-6 max-w-4xl mx-auto space-y-6">
-        {/* خطة التغذية */}
-        <NutritionPlan
-          plan={plan}
-          allowSwap={isProOrPremium} // Pro/Premium تفعيل الاستبدال
-        />
-
-        {/* باني الوجبات — فقط Pro/Premium */}
-        {isProOrPremium && (
-          <section className="bg-white rounded-2xl border p-6 shadow">
-            <ProMealBuilder
-              calories={plan?.calories ?? 0}
-              protein={plan?.protein ?? 0}
-              carbs={plan?.carbs ?? 0}
-              fat={plan?.fat ?? 0}
-              subscription={currentTier}
+        {/* 👇 حالة اشتراك Basic: نعرض الخطة الجاهزة + محرّر Pro مقفول كـ Upsell */}
+        {currentTier === "basic" && (
+          <>
+            <NutritionPlan
+              plan={plan}
+              allowSwap={false} // Basic: بدون استبدال
             />
-          </section>
+
+            <ProMealBuilder
+              calories={calories}
+              protein={protein}
+              carbs={carbs}
+              fat={fat}
+              subscription="basic" // يخلّيها مقفولة مع رسالة "متاحة لمشتركي Pro"
+            />
+          </>
+        )}
+
+        {/* 👇 حالة اشتراك Pro أو Premium: نعرض محرّر Pro فقط مفتوح بالكامل */}
+        {isProOrPremium && (
+          <ProMealBuilder
+            calories={calories}
+            protein={protein}
+            carbs={carbs}
+            fat={fat}
+            subscription={currentTier} // "pro" أو "premium" → يفتح الميزة
+          />
         )}
       </main>
     </div>
