@@ -143,55 +143,65 @@ export default function Onboarding() {
   };
 
   // ✅ كود الدفع – يستقبل نوع الخطة المختارة من الكارت
-  const handlePay = async (selectedTier) => {
-    try {
-      const usedTier =
-        (selectedTier && PLAN_PRICES[selectedTier] && selectedTier) ||
-        (PLAN_PRICES[tier] ? tier : "basic");
+  // ✅ كود الدفع – يستقبل نوع الخطة المختارة من الكارت
+const handlePay = async (selectedTier) => {
+  try {
+    const usedTier =
+      (selectedTier && PLAN_PRICES[selectedTier] && selectedTier) ||
+      (PLAN_PRICES[tier] ? tier : "basic");
 
-      const price = PLAN_PRICES[usedTier] ?? PLAN_PRICES.basic; // ريال
-      const amountHalala = price * 100; // تحويل إلى هللات لميسر
-      const description =
-        PLAN_LABELS[usedTier] || "اشتراك FitLife";
+    // 🚀 السعر الأساسي للخطة الجديدة
+    const newPrice = PLAN_PRICES[usedTier];
 
-      const res = await fetch("/api/pay/create-invoice", {
-        method: "POST",
-        credentials: "include", // 👈 لإرسال الكوكي (JWT)
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          amount: amountHalala,
-          currency: "SAR",
-          description,
-          tier: usedTier, // 👈 نرسل نوع الخطة (basic / pro / premium)
-          name: user?.name || "عميل FitLife",
-          email: user?.email || "no-email@fitlife.app",
-        }),
-      });
+    // 🚀 السعر الحالي للمستخدم (Basic / Pro / Premium)
+    const oldTier = user?.subscriptionTier?.toLowerCase() || "basic";
+    const oldPrice = PLAN_PRICES[oldTier] ?? 0;
 
-      const data = await res.json().catch(() => ({}));
+    // 🚀 احسب فرق السعر (ترقية فقط)
+    const priceDiff = Math.max(newPrice - oldPrice, 0);
+    const finalAmountHalala = priceDiff * 100;
 
-      if (!res.ok || !data.ok || !data.url) {
-        alert(data.error || "تعذر إنشاء الفاتورة");
-        return;
-      }
+    const description =
+      PLAN_LABELS[usedTier] || "اشتراك FitLife";
 
-      // ✅ خزّن رقم الفاتورة مؤقتًا لاستخدامه بصفحة success
-      try {
-        if (data.invoice?.id) {
-          localStorage.setItem("pay_inv", data.invoice.id);
-        }
-      } catch {}
+    const res = await fetch("/api/pay/create-invoice", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        amount: finalAmountHalala,   // 💰 مبلغ الفرق فقط
+        currency: "SAR",
+        description,
+        tier: usedTier,              // ⚡ الخطة المستهدفة (Pro/Premium)
+        upgradeFrom: oldTier,        // ⚡ من أي خطة جاي
+        name: user?.name || "عميل FitLife",
+        email: user?.email || "no-email@fitlife.app",
+      }),
+    });
 
-      // ✅ افتح صفحة الدفع في Moyasar
-      window.location.href = data.url;
-    } catch (e) {
-      console.error(e);
-      alert("حدث خطأ في إنشاء الفاتورة");
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok || !data.url) {
+      alert(data.error || "تعذر إنشاء الفاتورة");
+      return;
     }
-  };
+
+    // خزّن رقم الفاتورة لاستخدامه في success
+    try {
+      if (data.invoice?.id) {
+        localStorage.setItem("pay_inv", data.invoice.id);
+      }
+    } catch {}
+
+    window.location.href = data.url;
+  } catch (e) {
+    console.error(e);
+    alert("حدث خطأ في إنشاء الفاتورة");
+  }
+};
 
   // ✅ بعد إدخال البيانات: ملخص + اختيار خطة الاشتراك
   if (summary) {

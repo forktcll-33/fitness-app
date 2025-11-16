@@ -40,38 +40,50 @@ export default async function handler(req, res) {
 
     const callbackUrl = `${appOrigin}/api/pay/callback`;
     const returnUrl = `${appOrigin}/pay/success?id={id}&invoice_id={id}`;
-    if (process.env.NODE_ENV === "production") {
-      console.log("PAY create-invoice → appOrigin:", appOrigin);
-      console.log("PAY create-invoice → callbackUrl:", callbackUrl);
-      console.log("PAY create-invoice → returnUrl:", returnUrl);
-    }
 
-    // مدخلات
+    // مدخلات الواجهة
     const {
       amount,
       currency,
       description,
       name: nameFromBody,
       email: emailFromBody,
-      tier, // 👈 نوع الاشتراك (basic / pro / premium)
+      tier,           // 👈 الخطة الجديدة المطلوبة
+      upgradeFrom,    // 👈 الخطة القديمة (basic / pro / premium)
     } = req.body || {};
 
-    // 👈 نحدد السعر الأساسي حسب نوع الخطة إن وُجد
-    const tierKey =
-      typeof tier === "string" ? tier.toLowerCase().trim() : null;
+    // قراءة الخطة الجديدة
+    const tierKey = typeof tier === "string"
+      ? tier.toLowerCase().trim()
+      : null;
 
-    let amountHalalaBase;
-    if (tierKey && PLAN_PRICES_HALALA[tierKey]) {
-      amountHalalaBase = PLAN_PRICES_HALALA[tierKey];
-    } else {
-      // fallback لو ما فيه tier معروف: نستعمل amount أو 10 ريال
-      amountHalalaBase = Number.isFinite(+amount) ? +amount : 1000;
-    }
+    // السعر الأساسي للخطة الجديدة
+    const newPriceHalala =
+      tierKey && PLAN_PRICES_HALALA[tierKey]
+        ? PLAN_PRICES_HALALA[tierKey]
+        : 1000;
+
+    // السعر القديم (للترقية)
+    const oldTierKey =
+      typeof upgradeFrom === "string"
+        ? upgradeFrom.toLowerCase()
+        : null;
+
+    const oldPriceHalala =
+      oldTierKey && PLAN_PRICES_HALALA[oldTierKey]
+        ? PLAN_PRICES_HALALA[oldTierKey]
+        : 0;
+
+    // 🟢 نحسب فرق السعر فقط  
+    let priceDifferenceHalala = Math.max(
+      newPriceHalala - oldPriceHalala,
+      0
+    );
 
     const curr = currency || "SAR";
     const desc = description || "خطة FitLife";
 
-    // المستخدم (إن وجد)
+    // بيانات المستخدم
     let customerName = nameFromBody || "عميل FitLife";
     let customerEmail = emailFromBody || "no-email@fitlife.app";
     let userId = null;
@@ -90,7 +102,7 @@ export default async function handler(req, res) {
       }
     } catch {}
 
-    // ✅ خصم فعّال (إن وجد)
+    // Promo discount (نفس نظامك كما هو)
     let appliedDiscount = { type: null, value: 0, note: null };
     try {
       const now = new Date();
@@ -114,17 +126,20 @@ export default async function handler(req, res) {
       console.warn("Promo fetch warning:", e?.message || e);
     }
 
-    // ✅ احسب النهائي بعد الخصم
-    let finalHalala = amountHalalaBase;
+    // حساب السعر النهائي بعد الخصم
+    let finalHalala = priceDifferenceHalala;
     if (appliedDiscount.type === "PERCENT") {
       finalHalala = Math.round(
-        amountHalalaBase * (1 - appliedDiscount.value / 100)
+        priceDifferenceHalala * (1 - appliedDiscount.value / 100)
       );
     } else if (appliedDiscount.type === "FLAT") {
-      finalHalala = Math.max(100, amountHalalaBase - appliedDiscount.value); // حد أدنى 1 ريال
+      finalHalala = Math.max(
+        100,
+        priceDifferenceHalala - appliedDiscount.value
+      );
     }
 
-    // إنشاء فاتورة ميسر
+    // إنشاء الفاتورة مع ميسر
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
 
     const payload = {
@@ -136,12 +151,16 @@ export default async function handler(req, res) {
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
-        base_amount: amountHalalaBase,
+        new_tier: tierKey,
+        old_tier: oldTierKey,
+        upgrade: oldTierKey ? true : false, // 👈 هل هي ترقية؟
+        base_new_price: newPriceHalala,
+        base_old_price: oldPriceHalala,
+        price_diff: priceDifferenceHalala,
         final_amount: finalHalala,
         discount_type: appliedDiscount.type,
         discount_value: appliedDiscount.value,
         discount_note: appliedDiscount.note,
-        subscription_tier: tierKey || null, // 👈 نحفظ نوع الاشتراك في الميتاداتا
       },
     };
 
@@ -157,44 +176,39 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     if (!resp.ok)
-      return res
-        .status(500)
-        .json({ error: data?.message || "Failed to create invoice" });
-    console.log("PAY create-invoice → invoice:", {
-      id: data?.id,
-      status: data?.status,
-      cb: data?.callback_url,
-      ret: data?.return_url,
-      hostSeen: req.headers["x-forwarded-host"] || req.headers.host,
-      protoSeen: req.headers["x-forwarded-proto"] || "https",
-    });
+      return res.status(500).json({
+        error: data?.message || "Failed to create invoice",
+      });
 
     const invoiceId = data?.id;
-    const payUrl = data?.url || data?.payment_url || data?.invoice_url;
-    if (!invoiceId || !payUrl)
-      return res
-        .status(500)
-        .json({ error: "Invoice created but missing id/url" });
+    const payUrl =
+      data?.url || data?.payment_url || data?.invoice_url;
 
-    // ✅ إنشاء Order داخلي وحفظ الخصومات
+    if (!invoiceId || !payUrl)
+      return res.status(500).json({
+        error: "Invoice created but missing id/url",
+      });
+
+    // حفظ الطلب في قاعدة البيانات
     if (userId) {
       await prisma.order.create({
         data: {
           invoiceId,
           userId,
-          amount: amountHalalaBase,
+          amount: priceDifferenceHalala, // 👈 مبلغ الفرق فقط
           finalAmount: finalHalala,
           currency: curr,
           status: "pending",
           gateway: "moyasar",
           discountType: appliedDiscount.type,
           discountValue: appliedDiscount.value,
-          // 👈 التير نلقطه لاحقًا من ميسر في callback عن طريق metadata.subscription_tier
         },
       });
     }
 
-    return res.status(200).json({ ok: true, url: payUrl, invoice: data });
+    return res
+      .status(200)
+      .json({ ok: true, url: payUrl, invoice: data });
   } catch (err) {
     console.error("Create invoice fatal error:", err);
     return res.status(500).json({ error: "Server error" });

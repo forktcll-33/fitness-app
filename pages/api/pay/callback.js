@@ -3,7 +3,7 @@ import prisma from "../../../lib/prisma";
 
 export const config = {
   api: {
-    bodyParser: false, // ميسّر قد ترسل JSON أو x-www-form-urlencoded
+    bodyParser: false,
   },
 };
 
@@ -19,7 +19,6 @@ export default async function handler(req, res) {
   console.log("MOYASAR CALLBACK HIT", req.method, req.headers["user-agent"]);
 
   if (req.method !== "POST") {
-    // الميثود غلط، بس نرجّع 200 عشان ما يكسر الويب هوك
     return res.status(200).json({ ok: false, note: "wrong method" });
   }
 
@@ -30,7 +29,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: false, error: "missing secret" });
     }
 
-    // نقرأ البودي (بس عشان نسجّله في اللوق لو احتجناه)
     const raw = await readBody(req);
     console.log("MOYASAR RAW BODY:", raw);
 
@@ -46,7 +44,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // نلتقط رقم الفاتورة من أي مكان ممكن
     let id =
       req.query?.id ||
       body?.id ||
@@ -56,11 +53,9 @@ export default async function handler(req, res) {
 
     if (!id) {
       console.error("NO INVOICE ID IN CALLBACK", body);
-      // برضه نرجع 200 عشان ميسر ما تعيد الويب هوك بلا نهاية
       return res.status(200).json({ ok: false, note: "no invoice id" });
     }
 
-    // نتحقق من الفاتورة من ميسّر باستخدام secret key
     const resp = await fetch(
       `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
@@ -95,20 +90,31 @@ export default async function handler(req, res) {
     const metaEmail =
       inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // نوع الاشتراك من الميتاداتا
-    const metaTier =
-      (inv?.metadata?.subscription_tier ||
-        inv?.metadata?.tier ||
-        ""
-      )
-        .toString()
-        .toLowerCase() || "basic";
+    // =============================================
+    // ✔️ قراءة بيانات الترقية من metadata
+    // =============================================
+    const newTierRaw =
+      inv?.metadata?.new_tier ||
+      inv?.metadata?.subscription_tier ||
+      inv?.metadata?.tier ||
+      null;
 
-    const normalizedTier = ["basic", "pro", "premium"].includes(metaTier)
-      ? metaTier
+    const upgradeFlag =
+      inv?.metadata?.upgrade === true ||
+      inv?.metadata?.upgrade === "true";
+
+    // الخطة النهائية
+    const newTier = newTierRaw
+      ? newTierRaw.toString().toLowerCase()
       : "basic";
 
-    // نحدّث الطلب في قاعدة البيانات
+    const normalizedTier = ["basic", "pro", "premium"].includes(newTier)
+      ? newTier
+      : "basic";
+
+    console.log("CALLBACK → upgrade?", upgradeFlag, "→ tier:", normalizedTier);
+
+    // تحديث الطلب
     let order = null;
     try {
       order = await prisma.order.update({
@@ -126,7 +132,7 @@ export default async function handler(req, res) {
         .catch(() => null);
     }
 
-    // نحاول نلقى المستخدم
+    // المستخدم
     let targetUserId = order?.userId ? Number(order.userId) : undefined;
     if (!targetUserId && metaEmail) {
       const u = await prisma.user
@@ -135,13 +141,15 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // نفعّل الاشتراك + نحدد نوع الخطة
+    // =============================================
+    // ✔️ تحديث اشتراك المستخدم بالخطة الجديدة
+    // =============================================
     if (targetUserId) {
       await prisma.user.update({
         where: { id: Number(targetUserId) },
         data: {
           isSubscribed: isPaid,
-          subscriptionTier: normalizedTier,
+          subscriptionTier: normalizedTier, // 👈 أهم تعديل
         },
       });
 
@@ -162,7 +170,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, paid: isPaid, tier: normalizedTier });
   } catch (e) {
     console.error("callback fatal:", e);
-    // برضه 200 عشان ميسر ما تعيد الطلب بلا نهاية
     return res.status(200).json({ ok: false, error: "server error" });
   }
 }
