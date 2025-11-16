@@ -2,11 +2,10 @@
 import { getUserFromRequest } from "../../../middleware/auth";
 import prisma from "../../../lib/prisma";
 
-// 👈 جدول أسعار الخطط بالهللة
 const PLAN_PRICES_HALALA = {
-  basic: 1000,   // 10 SAR
-  pro: 2900,     // 29 SAR
-  premium: 4900, // 49 SAR
+  basic: 1000,
+  pro: 2900,
+  premium: 4900,
 };
 
 export default async function handler(req, res) {
@@ -16,7 +15,6 @@ export default async function handler(req, res) {
   try {
     const secret = process.env.MOYASAR_SECRET_KEY;
     if (!secret || !secret.startsWith("sk_")) {
-      console.error("Moyasar secret key is missing or invalid");
       return res.status(500).json({ error: "Payment config error" });
     }
 
@@ -41,49 +39,30 @@ export default async function handler(req, res) {
     const callbackUrl = `${appOrigin}/api/pay/callback`;
     const returnUrl = `${appOrigin}/pay/success?id={id}&invoice_id={id}`;
 
-    // مدخلات الواجهة
+    // مدخلات
     const {
       amount,
       currency,
       description,
       name: nameFromBody,
       email: emailFromBody,
-      tier,           // 👈 الخطة الجديدة المطلوبة
-      upgradeFrom,    // 👈 الخطة القديمة (basic / pro / premium)
+      tier,
     } = req.body || {};
 
-    // قراءة الخطة الجديدة
-    const tierKey = typeof tier === "string"
-      ? tier.toLowerCase().trim()
-      : null;
+    // 👇 هذا التصحيح المهم
+    const tierKey =
+      typeof tier === "string" ? tier.toLowerCase().trim() : null;
 
-    // السعر الأساسي للخطة الجديدة
-    const newPriceHalala =
+    // إذا tier معروف نأخذ سعره مباشرة (basic يعمل صح الآن)
+    let amountHalalaBase =
       tierKey && PLAN_PRICES_HALALA[tierKey]
         ? PLAN_PRICES_HALALA[tierKey]
-        : 1000;
-
-    // السعر القديم (للترقية)
-    const oldTierKey =
-      typeof upgradeFrom === "string"
-        ? upgradeFrom.toLowerCase()
-        : null;
-
-    const oldPriceHalala =
-      oldTierKey && PLAN_PRICES_HALALA[oldTierKey]
-        ? PLAN_PRICES_HALALA[oldTierKey]
-        : 0;
-
-    // 🟢 نحسب فرق السعر فقط  
-    let priceDifferenceHalala = Math.max(
-      newPriceHalala - oldPriceHalala,
-      0
-    );
+        : 1000; // fallback آمن
 
     const curr = currency || "SAR";
     const desc = description || "خطة FitLife";
 
-    // بيانات المستخدم
+    // المستخدم
     let customerName = nameFromBody || "عميل FitLife";
     let customerEmail = emailFromBody || "no-email@fitlife.app";
     let userId = null;
@@ -102,48 +81,13 @@ export default async function handler(req, res) {
       }
     } catch {}
 
-    // Promo discount (نفس نظامك كما هو)
-    let appliedDiscount = { type: null, value: 0, note: null };
-    try {
-      const now = new Date();
-      const promo = await prisma.announcement.findFirst({
-        where: {
-          isActive: true,
-          startsAt: { lte: now },
-          OR: [{ endsAt: { gte: now } }, { endsAt: null }],
-          discountType: { not: null },
-          discountValue: { gt: 0 },
-        },
-        orderBy: { startsAt: "desc" },
-      });
+    // 👇 أهم تصحيح – لازم يكون ALWAYS string
+    const safeTier = tierKey || "basic";
 
-      if (promo?.discountType && promo?.discountValue > 0) {
-        appliedDiscount.type = promo.discountType;
-        appliedDiscount.value = promo.discountValue;
-        appliedDiscount.note = promo.title || null;
-      }
-    } catch (e) {
-      console.warn("Promo fetch warning:", e?.message || e);
-    }
-
-    // حساب السعر النهائي بعد الخصم
-    let finalHalala = priceDifferenceHalala;
-    if (appliedDiscount.type === "PERCENT") {
-      finalHalala = Math.round(
-        priceDifferenceHalala * (1 - appliedDiscount.value / 100)
-      );
-    } else if (appliedDiscount.type === "FLAT") {
-      finalHalala = Math.max(
-        100,
-        priceDifferenceHalala - appliedDiscount.value
-      );
-    }
-
-    // إنشاء الفاتورة مع ميسر
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
 
     const payload = {
-      amount: finalHalala,
+      amount: amountHalalaBase,
       currency: curr,
       description: desc,
       callback_url: callbackUrl,
@@ -151,16 +95,7 @@ export default async function handler(req, res) {
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
-        new_tier: tierKey,
-        old_tier: oldTierKey,
-        upgrade: oldTierKey ? true : false, // 👈 هل هي ترقية؟
-        base_new_price: newPriceHalala,
-        base_old_price: oldPriceHalala,
-        price_diff: priceDifferenceHalala,
-        final_amount: finalHalala,
-        discount_type: appliedDiscount.type,
-        discount_value: appliedDiscount.value,
-        discount_note: appliedDiscount.note,
+        subscription_tier: safeTier, // 👈 هنا المشكلة انحلت
       },
     };
 
@@ -176,39 +111,31 @@ export default async function handler(req, res) {
 
     const data = await resp.json();
     if (!resp.ok)
-      return res.status(500).json({
-        error: data?.message || "Failed to create invoice",
-      });
+      return res.status(500).json({ error: data?.message || "Failed to create invoice" });
 
     const invoiceId = data?.id;
-    const payUrl =
-      data?.url || data?.payment_url || data?.invoice_url;
+    const payUrl = data?.url || data?.payment_url || data?.invoice_url;
 
     if (!invoiceId || !payUrl)
-      return res.status(500).json({
-        error: "Invoice created but missing id/url",
-      });
+      return res.status(500).json({ error: "Invoice created but missing id/url" });
 
-    // حفظ الطلب في قاعدة البيانات
     if (userId) {
       await prisma.order.create({
         data: {
           invoiceId,
           userId,
-          amount: priceDifferenceHalala, // 👈 مبلغ الفرق فقط
-          finalAmount: finalHalala,
+          amount: amountHalalaBase,
+          finalAmount: amountHalalaBase,
           currency: curr,
           status: "pending",
           gateway: "moyasar",
-          discountType: appliedDiscount.type,
-          discountValue: appliedDiscount.value,
+          discountType: null,
+          discountValue: 0,
         },
       });
     }
 
-    return res
-      .status(200)
-      .json({ ok: true, url: payUrl, invoice: data });
+    return res.status(200).json({ ok: true, url: payUrl, invoice: data });
   } catch (err) {
     console.error("Create invoice fatal error:", err);
     return res.status(500).json({ error: "Server error" });
