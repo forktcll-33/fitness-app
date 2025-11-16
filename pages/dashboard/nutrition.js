@@ -17,7 +17,6 @@ export async function getServerSideProps({ req }) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // نقرأ الخطة ونوع الاشتراك من قاعدة البيانات
     const user = await prisma.user.findUnique({
       where: { id: parseInt(payload.id) },
       select: {
@@ -69,7 +68,6 @@ export default function NutritionPage({ user, plan, tier }) {
   const isProOrPremium =
     currentTier === "pro" || currentTier === "premium";
 
-  // نقرأ الماكروز من الخطة (نستخدمها في محرّر البرو)
   const calories = Number(plan?.calories || 0);
   const protein = Number(plan?.protein || 0);
   const carbs = Number(plan?.carbs || 0);
@@ -77,15 +75,38 @@ export default function NutritionPage({ user, plan, tier }) {
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
+        {/* زر ترقية الاشتراك — يظهر فقط لمشتركي Basic */}
+{currentTier === "basic" && (
+  <div className="px-6 mt-4">
+    <button
+      onClick={() => window.location.href = "/subscription/upgrade"}
+      className="inline-flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm hover:bg-yellow-600"
+    >
+      🚀 ترقية الاشتراك الآن — فتح ميزات Pro & Premium
+    </button>
+  </div>
+)}
+      {/* HEADER */}
       <header className="bg-white shadow px-6 py-4">
-        <h1 className="text-xl font-bold text-green-600">
-          FitLife — خطة التغذية
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-green-600">
+            FitLife — خطة التغذية
+          </h1>
+
+          {/* زر العودة للوحة التحكم */}
+          <button
+            onClick={() => window.location.href = "/dashboard"}
+            className="text-sm text-green-700 hover:text-green-900 underline"
+          >
+            ← الرجوع للوحة التحكم
+          </button>
+        </div>
+
         <p className="text-sm text-gray-500 mt-1">
           👤 {user?.name || "-"} | 📧 {user?.email || "-"}
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          نوع الاشتراك الحالي:{" "}
+          نوع الاشتراك:{" "}
           <span className="font-semibold text-green-700">
             {currentTier === "pro"
               ? "Pro"
@@ -97,32 +118,39 @@ export default function NutritionPage({ user, plan, tier }) {
       </header>
 
       <main className="p-6 max-w-4xl mx-auto space-y-6">
-        {/* 👇 حالة اشتراك Basic: نعرض الخطة الجاهزة + محرّر Pro مقفول كـ Upsell */}
+        {/* ================================ */}
+        {/*       BASIC USERS ONLY           */}
+        {/* ================================ */}
         {currentTier === "basic" && (
           <>
+            {/* جدول Basic فقط */}
             <NutritionPlan
-              plan={plan}
-              allowSwap={false} // Basic: بدون استبدال
-            />
+  plan={plan}
+  allowSwap={false}
+  subscription={currentTier}
+/>
 
+            {/* محرّر برو → مقفول + يظهر كـ Upsell */}
             <ProMealBuilder
               calories={calories}
               protein={protein}
               carbs={carbs}
               fat={fat}
-              subscription="basic" // يخلّيها مقفولة مع رسالة "متاحة لمشتركي Pro"
+              subscription="basic"
             />
           </>
         )}
 
-        {/* 👇 حالة اشتراك Pro أو Premium: نعرض محرّر Pro فقط مفتوح بالكامل */}
+        {/* ================================ */}
+        {/*        PRO / PREMIUM ONLY        */}
+        {/* ================================ */}
         {isProOrPremium && (
           <ProMealBuilder
             calories={calories}
             protein={protein}
             carbs={carbs}
             fat={fat}
-            subscription={currentTier} // "pro" أو "premium" → يفتح الميزة
+            subscription={currentTier}
           />
         )}
       </main>

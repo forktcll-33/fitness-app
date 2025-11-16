@@ -58,7 +58,7 @@ function macrosForItem(foodKey, gramsOrPieces) {
   };
 }
 
-// نحسب الكمية المطلوبة للاقتراب من هدف الوجبة (بدون ما نطيح في أرقام مجنونة)
+// نحسب الكمية المطلوبة للاقتراب من هدف الوجبة
 function solveAmountForTarget(targetMacroGrams, foodKey, category) {
   const item =
     FOOD_DB[category]?.[foodKey] ||
@@ -70,7 +70,7 @@ function solveAmountForTarget(targetMacroGrams, foodKey, category) {
 
   const mainKey = mainMacroKey(category);
 
-  // لو per-piece مثل البيض
+  // per-piece
   if (item.unit === "piece") {
     const density = item.macrosPerUnit?.[mainKey] || 0;
     if (!density) return null;
@@ -79,7 +79,7 @@ function solveAmountForTarget(targetMacroGrams, foodKey, category) {
     return { type: "piece", amount: pieces };
   }
 
-  // لكل 100غ
+  // per 100g
   const density = item.macros100?.[mainKey] || 0;
   if (!density) return null;
 
@@ -205,12 +205,32 @@ export default function ProMealBuilder({
   protein,
   carbs,
   fat,
-  subscription, // باقي هنا للتوافق، لكن ما نعتمد عليه الآن
+  subscription,
 }) {
-  // بما أن عرض هذا الكومبوننت يتم حاليًا فقط لمشتركي Pro/Premium في الداشبورد،
-  // نخليه دائمًا مفعّل هنا.
-  const isPro = true;
+  // الاشتراك الصحيح
+  const isPro = subscription === "pro" || subscription === "premium";
 
+  // حالة Basic → نظهر صندوق القفل
+  if (!isPro) {
+    return (
+      <section className="bg-white rounded-2xl border p-6 shadow text-center space-y-3">
+        <h2 className="text-lg font-bold text-gray-700">
+          🔒 هذه الميزة متاحة فقط لمشتركي Pro و Premium
+        </h2>
+        <p className="text-sm text-gray-500">
+          يمكنك ترقية اشتراكك لفتح محرّر الوجبات الذكي.
+        </p>
+        <button
+          onClick={() => (window.location.href = "/subscription/upgrade")}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+        >
+          ترقية الاشتراك
+        </button>
+      </section>
+    );
+  }
+
+  // PRO / PREMIUM → مفتوح بالكامل
   const mealTargets = useMemo(() => {
     return MEAL_SPLIT.map((ratio) => ({
       calories: Math.round(calories * ratio),
@@ -255,9 +275,7 @@ export default function ProMealBuilder({
           foodKey,
           category
         );
-        if (!amountSolution) {
-          return meal;
-        }
+        if (!amountSolution) return meal;
 
         const amount = amountSolution.amount;
 
@@ -303,8 +321,7 @@ export default function ProMealBuilder({
         </div>
       </div>
 
-      {/* بطاقات الوجبات */}
-      <div className={`${!isPro ? "opacity-60" : ""} space-y-3`}>
+      <div className="space-y-3">
         {meals.map((meal, idx) => (
           <MealCard
             key={idx}
@@ -312,7 +329,7 @@ export default function ProMealBuilder({
             mealTargets={mealTargets[idx]}
             selections={meal.selections}
             onChangeSelection={(cat, foodKey) =>
-              isPro && handleChangeSelection(idx, cat, foodKey)
+              handleChangeSelection(idx, cat, foodKey)
             }
           />
         ))}

@@ -180,7 +180,15 @@ export default function Dashboard({ user }) {
                 <h2 className="text-2xl font-bold text-green-600">
                   لوحة التحكم
                 </h2>
-
+              {/* زر ترقية الاشتراك — يظهر فقط لاشتراك Basic */}
+              {user.subscriptionTier === "basic" && (
+              <button
+               onClick={() => router.push("/subscription/upgrade")}
+                className="mt-2 inline-flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm hover:bg-yellow-600"
+               >
+                🚀 ترقية الاشتراك
+               </button>
+               )}
                 {/* مخطط الوزن (لـ Pro/Premium فقط) */}
                 <WeightChart data={data} />
 
