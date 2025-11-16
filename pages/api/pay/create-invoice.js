@@ -74,7 +74,8 @@ const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
       currency: curr,
       description: desc,
       callback_url: callbackUrl,
-      return_url: returnUrl,
+      success_url: returnUrl,
+      back_url: returnUrl, // اختياري بس مفيد
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
