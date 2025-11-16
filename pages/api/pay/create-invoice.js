@@ -19,25 +19,8 @@ export default async function handler(req, res) {
     }
 
     // أصل الموقع
-    const envAppUrl = (process.env.APP_URL || "").trim();
-    let appOrigin = "";
-    try {
-      if (envAppUrl) {
-        const u = new URL(envAppUrl);
-        if (u.protocol !== "https:") u.protocol = "https:";
-        appOrigin = u.origin;
-      }
-    } catch {}
-
-    if (!appOrigin) {
-      const host = req.headers["x-forwarded-host"] || req.headers.host;
-      const proto = req.headers["x-forwarded-proto"] || "https";
-      if (host) appOrigin = `${proto}://${host}`;
-    }
-    if (!appOrigin) appOrigin = "https://example.com";
-
-    const callbackUrl = `${appOrigin}/api/pay/callback`;
-    const returnUrl = `${appOrigin}/pay/success?id={id}&invoice_id={id}`;
+    const callbackUrl = "https://fitlife.com.sa/api/pay/callback";
+const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
 
     // مدخلات
     const {
