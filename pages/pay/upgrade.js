@@ -77,7 +77,8 @@ export async function getServerSideProps({ req, query }) {
       `FitLife upgrade to ${target.toUpperCase()} (user #${user.id})`
     );
     body.set("callback_url", `${baseUrl}/api/pay/callback`);
-    body.set("success_url", `${baseUrl}/pay/success`); // 👈 بدون {id}
+    body.set("success_url", `${baseUrl}/pay/success`);
+    body.set("back_url", `${baseUrl}/pay/success`);
 
     body.set("metadata[user_id]", String(user.id));
     body.set("metadata[customer_email]", user.email || "");
