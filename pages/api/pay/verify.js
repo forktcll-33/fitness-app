@@ -124,10 +124,10 @@ export default async function handler(req, res) {
         where: { id: targetUserId },
         data: {
           isSubscribed: true,
-          subscriptionAt: new Date(),
           subscriptionTier: normalizedTier,
         },
       });
+    
 
       console.log(
         "VERIFY → PAID ✅ USER:",
