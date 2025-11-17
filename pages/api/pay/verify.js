@@ -27,11 +27,9 @@ export default async function handler(req, res) {
 
     if (!resp.ok) {
       console.error("verify error:", json);
-      return res
-        .status(400)
-        .json({
-          error: json?.message || "تعذر التحقق من الفاتورة",
-        });
+      return res.status(400).json({
+        error: json?.message || "تعذر التحقق من الفاتورة",
+      });
     }
 
     const invoiceId = json?.id || id;
@@ -47,17 +45,27 @@ export default async function handler(req, res) {
 
     const paidCurrency = json?.currency || undefined;
 
-    // ✔️ نفس منطق callback
-    const metaTierRaw =
+    // ====== تحديد الـ tier ======
+    let metaTierRaw =
       (json?.metadata?.new_tier ||
         json?.metadata?.subscription_tier ||
         json?.metadata?.tier ||
         "") + "";
-    const metaTier = metaTierRaw.toLowerCase();
+    let metaTier = metaTierRaw.toLowerCase().trim();
+
+    // لو الميتاداتا ناقصة أو غريبة نحاول نستنتج من المبلغ
+    if (!["basic", "pro", "premium"].includes(metaTier)) {
+      if (paidAmount === 1000) metaTier = "basic"; // 10 SAR
+      else if (paidAmount === 2900) metaTier = "pro"; // 29 SAR
+      else if (paidAmount === 4900) metaTier = "premium"; // 49 SAR
+      else metaTier = "basic";
+    }
+
     const normalizedTier = ["basic", "pro", "premium"].includes(metaTier)
       ? metaTier
       : "basic";
 
+    // ====== تحديد المستخدم ======
     let userIdFromCookie = null;
     try {
       const userJwt = getUserFromRequest(req);
@@ -65,6 +73,8 @@ export default async function handler(req, res) {
     } catch {}
 
     const metaEmail = json?.metadata?.customer_email;
+    const metaUserId =
+      json?.metadata?.user_id || json?.metadata?.userId || null;
 
     let order = await prisma.order
       .findUnique({ where: { invoiceId } })
@@ -74,7 +84,7 @@ export default async function handler(req, res) {
       order = await prisma.order.create({
         data: {
           invoiceId,
-          userId: userIdFromCookie || undefined,
+          userId: userIdFromCookie || (metaUserId ? Number(metaUserId) : undefined),
           amount: paidAmount ?? 0,
           finalAmount: paidAmount ?? 0,
           currency: paidCurrency || "SAR",
@@ -97,6 +107,9 @@ export default async function handler(req, res) {
     if (!targetUserId && order?.userId)
       targetUserId = Number(order.userId);
 
+    if (!targetUserId && metaUserId)
+      targetUserId = Number(metaUserId);
+
     if (!targetUserId && metaEmail) {
       const u = await prisma.user
         .findUnique({ where: { email: metaEmail } })
@@ -118,6 +131,13 @@ export default async function handler(req, res) {
         "VERIFY → PAID ✅ USER:",
         targetUserId,
         "INVOICE:",
+        invoiceId,
+        "TIER:",
+        normalizedTier
+      );
+    } else if (paid && !targetUserId) {
+      console.warn(
+        "VERIFY → PAID BUT NO USER FOUND FOR INVOICE:",
         invoiceId,
         "TIER:",
         normalizedTier

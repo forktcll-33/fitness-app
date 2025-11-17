@@ -134,15 +134,21 @@ export default async function handler(req, res) {
         .catch(() => null);
     }
 
-    // المستخدم
-    let targetUserId = order?.userId ? Number(order.userId) : undefined;
-    if (!targetUserId && metaEmail) {
-      const u = await prisma.user
-        .findUnique({ where: { email: metaEmail } })
-        .catch(() => null);
-      if (u) targetUserId = u.id;
-    }
-
+        // المستخدم
+        const metaUserId =
+        inv?.metadata?.user_id || inv?.metadata?.userId || null;
+  
+      let targetUserId = order?.userId ? Number(order.userId) : undefined;
+  
+      if (!targetUserId && metaUserId)
+        targetUserId = Number(metaUserId);
+  
+      if (!targetUserId && metaEmail) {
+        const u = await prisma.user
+          .findUnique({ where: { email: metaEmail } })
+          .catch(() => null);
+        if (u) targetUserId = u.id;
+      }
     // تحديث اشتراك المستخدم
     if (targetUserId) {
       await prisma.user.update({
