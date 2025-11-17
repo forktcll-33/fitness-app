@@ -5,7 +5,6 @@ import { useRouter } from "next/router";
 export default function PaySuccess() {
   const router = useRouter();
   const [msg, setMsg] = useState("جاري تأكيد الدفع وتفعيل الاشتراك…");
-  const [invoiceId, setInvoiceId] = useState("");
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -14,7 +13,6 @@ export default function PaySuccess() {
     let timerId = null;
     let hardTimeoutId = null;
 
-    // 1) اجلب رقم الفاتورة من الـ query أو التخزين المحلي
     const q = router.query || {};
     const invId =
       q.id ||
@@ -23,20 +21,18 @@ export default function PaySuccess() {
       (typeof window !== "undefined" && localStorage.getItem("pay_inv"));
 
     if (invId) {
-      setInvoiceId(String(invId));
       try {
         localStorage.setItem("pay_inv", String(invId));
       } catch {}
     }
 
-    // 2) إن لم يوجد رقم فاتورة (يحدث أحيانًا)، حوّل مباشرة
     if (!invId) {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
       router.replace("/dashboard?paid=1");
       return;
     }
 
-    // ✅ مهلة قصوى: حتى لو صار أي خلل في verifyLoop، نحول بعد 20 ثانية كحد أقصى
+    // مهلة قصوى أقصر شوي
     hardTimeoutId = setTimeout(() => {
       if (canceled) return;
       setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
@@ -44,9 +40,8 @@ export default function PaySuccess() {
         localStorage.removeItem("pay_inv");
       } catch {}
       router.replace("/dashboard?paid=1");
-    }, 20000);
+    }, 10000);
 
-    // 3) التحقق المتكرر مع Backoff خفيف
     let attempts = 0;
     const maxAttempts = 10;
 
@@ -71,25 +66,23 @@ export default function PaySuccess() {
             localStorage.removeItem("pay_inv");
           } catch {}
 
-          // محاولة توليد الخطة (لا توقف التحويل لو فشلت)
           fetch("/api/plan/generate", {
             method: "POST",
             credentials: "include",
           }).catch(() => {});
 
-          // نلغي المهلة القصوى لأن كل شيء تمام
           if (hardTimeoutId) clearTimeout(hardTimeoutId);
 
           router.replace("/dashboard?paid=1");
           return;
         }
       } catch {
-        // تجاهل وأعد المحاولة
+        // تجاهل
       }
 
       if (!canceled) {
         if (attempts < maxAttempts) {
-          const delay = 1000 + attempts * 500; // 1.0s, 1.5s, 2.0s …
+          const delay = 800 + attempts * 400;
           timerId = setTimeout(verifyLoop, delay);
         } else {
           setMsg("تم الدفع. سيتم تحويلك الآن…");
@@ -102,7 +95,6 @@ export default function PaySuccess() {
     setMsg("جاري تأكيد الدفع…");
     verifyLoop();
 
-    // تنظيف
     return () => {
       canceled = true;
       if (timerId) clearTimeout(timerId);
@@ -116,11 +108,7 @@ export default function PaySuccess() {
       dir="rtl"
     >
       <p className="text-lg">{msg}</p>
-      {invoiceId ? (
-        <p className="text-sm text-gray-600">
-          رقم الفاتورة: <b dir="ltr">{invoiceId}</b>
-        </p>
-      ) : null}
+      {/* شلنا سطر رقم الفاتورة */}
     </div>
   );
 }

@@ -3,9 +3,9 @@ import { getUserFromRequest } from "../../../middleware/auth";
 import prisma from "../../../lib/prisma";
 
 const PLAN_PRICES_HALALA = {
-  basic: 100,   // 1 SAR
-  pro: 100,     // 1 SAR
-  premium: 100, // 1 SAR
+  basic: 100,   // 1 SAR (تجريبي)
+  pro: 100,     // 1 SAR (تجريبي)
+  premium: 100, // 1 SAR (تجريبي)
 };
 
 export default async function handler(req, res) {
@@ -18,9 +18,10 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Payment config error" });
     }
 
-    // أصل الموقع
+    // روابط ثابتة
     const callbackUrl = "https://fitlife.com.sa/api/pay/callback";
-const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
+    const returnUrl =
+      "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
 
     // مدخلات
     const {
@@ -32,15 +33,15 @@ const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
       tier,
     } = req.body || {};
 
-    // 👇 هذا التصحيح المهم
+    // tier من البودي
     const tierKey =
       typeof tier === "string" ? tier.toLowerCase().trim() : null;
 
-    // إذا tier معروف نأخذ سعره مباشرة (basic يعمل صح الآن)
+    // لو tier معروف نستخدم سعره، غير كذا نرجع لـ basic (1 ريال الآن)
     let amountHalalaBase =
       tierKey && PLAN_PRICES_HALALA[tierKey]
         ? PLAN_PRICES_HALALA[tierKey]
-        : 1000; // fallback آمن
+        : PLAN_PRICES_HALALA.basic;
 
     const curr = currency || "SAR";
     const desc = description || "خطة FitLife";
@@ -64,7 +65,7 @@ const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
       }
     } catch {}
 
-    // 👇 أهم تصحيح – لازم يكون ALWAYS string
+    // دايم يكون string واضح
     const safeTier = tierKey || "basic";
 
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
@@ -75,11 +76,14 @@ const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
       description: desc,
       callback_url: callbackUrl,
       success_url: returnUrl,
-      back_url: returnUrl, // اختياري بس مفيد
+      back_url: returnUrl, // لو رجع من صفحة ميسر
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
-        subscription_tier: safeTier, // 👈 هنا المشكلة انحلت
+        // الاثنين نفس الشي الآن عشان الكول باك يلقطه أكيد
+        subscription_tier: safeTier,
+        new_tier: safeTier,
+        upgrade: false, // الاشتراك العادي (مو ترقية)
       },
     };
 
@@ -95,13 +99,17 @@ const returnUrl = "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
 
     const data = await resp.json();
     if (!resp.ok)
-      return res.status(500).json({ error: data?.message || "Failed to create invoice" });
+      return res
+        .status(500)
+        .json({ error: data?.message || "Failed to create invoice" });
 
     const invoiceId = data?.id;
     const payUrl = data?.url || data?.payment_url || data?.invoice_url;
 
     if (!invoiceId || !payUrl)
-      return res.status(500).json({ error: "Invoice created but missing id/url" });
+      return res
+        .status(500)
+        .json({ error: "Invoice created but missing id/url" });
 
     if (userId) {
       await prisma.order.create({

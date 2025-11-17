@@ -90,9 +90,7 @@ export default async function handler(req, res) {
     const metaEmail =
       inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
-    // =============================================
-    // ✔️ قراءة بيانات الترقية من metadata
-    // =============================================
+    // ✔️ قراءة بيانات الترقية / التير
     const newTierRaw =
       inv?.metadata?.new_tier ||
       inv?.metadata?.subscription_tier ||
@@ -103,7 +101,6 @@ export default async function handler(req, res) {
       inv?.metadata?.upgrade === true ||
       inv?.metadata?.upgrade === "true";
 
-    // الخطة النهائية
     const newTier = newTierRaw
       ? newTierRaw.toString().toLowerCase()
       : "basic";
@@ -112,7 +109,12 @@ export default async function handler(req, res) {
       ? newTier
       : "basic";
 
-    console.log("CALLBACK → upgrade?", upgradeFlag, "→ tier:", normalizedTier);
+    console.log(
+      "CALLBACK → upgrade?",
+      upgradeFlag,
+      "→ tier:",
+      normalizedTier
+    );
 
     // تحديث الطلب
     let order = null;
@@ -141,15 +143,13 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // =============================================
-    // ✔️ تحديث اشتراك المستخدم بالخطة الجديدة
-    // =============================================
+    // تحديث اشتراك المستخدم
     if (targetUserId) {
       await prisma.user.update({
         where: { id: Number(targetUserId) },
         data: {
           isSubscribed: isPaid,
-          subscriptionTier: normalizedTier, // 👈 أهم تعديل
+          subscriptionTier: normalizedTier,
         },
       });
 
@@ -167,7 +167,9 @@ export default async function handler(req, res) {
       console.warn("CALLBACK → NO USER FOUND FOR INVOICE", invoiceId);
     }
 
-    return res.status(200).json({ ok: true, paid: isPaid, tier: normalizedTier });
+    return res
+      .status(200)
+      .json({ ok: true, paid: isPaid, tier: normalizedTier });
   } catch (e) {
     console.error("callback fatal:", e);
     return res.status(200).json({ ok: false, error: "server error" });

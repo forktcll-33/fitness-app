@@ -13,7 +13,6 @@ export default async function handler(req, res) {
       .json({ error: "Missing MOYASAR_SECRET_KEY" });
 
   try {
-    // ✅ جلب الفاتورة من ميسّر
     const resp = await fetch(
       `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
@@ -48,9 +47,10 @@ export default async function handler(req, res) {
 
     const paidCurrency = json?.currency || undefined;
 
-    // ✅ استخراج نوع الخطة من metadata (مثل callback)
+    // ✔️ نفس منطق callback
     const metaTierRaw =
-      (json?.metadata?.subscription_tier ||
+      (json?.metadata?.new_tier ||
+        json?.metadata?.subscription_tier ||
         json?.metadata?.tier ||
         "") + "";
     const metaTier = metaTierRaw.toLowerCase();
@@ -58,17 +58,14 @@ export default async function handler(req, res) {
       ? metaTier
       : "basic";
 
-    // ✅ استخراج المستخدم من الكوكي
     let userIdFromCookie = null;
     try {
       const userJwt = getUserFromRequest(req);
       if (userJwt?.id) userIdFromCookie = Number(userJwt.id);
     } catch {}
 
-    // ✅ استخراج البريد من metadata
     const metaEmail = json?.metadata?.customer_email;
 
-    // ✅ البحث عن الطلب في قاعدة البيانات
     let order = await prisma.order
       .findUnique({ where: { invoiceId } })
       .catch(() => null);
@@ -82,7 +79,6 @@ export default async function handler(req, res) {
           finalAmount: paidAmount ?? 0,
           currency: paidCurrency || "SAR",
           status: paid ? "paid" : status,
-          // ما نحفظ tier هنا، نخليه في user
         },
       });
     } else {
@@ -96,7 +92,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // ✅ تحديد المستخدم الذي سيفعل له الاشتراك
     let targetUserId = userIdFromCookie;
 
     if (!targetUserId && order?.userId)
@@ -109,14 +104,13 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
-    // ✅ تفعيل الاشتراك + تخزين نوع الخطة زي callback
     if (paid && targetUserId) {
       await prisma.user.update({
         where: { id: targetUserId },
         data: {
           isSubscribed: true,
           subscriptionAt: new Date(),
-          subscriptionTier: normalizedTier, // 👈 هنا الفرق
+          subscriptionTier: normalizedTier,
         },
       });
 
