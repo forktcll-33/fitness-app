@@ -56,6 +56,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: false, note: "no invoice id" });
     }
 
+    // جلب الفاتورة من ميسّر
     const resp = await fetch(
       `https://api.moyasar.com/v1/invoices/${encodeURIComponent(id)}`,
       {
@@ -68,7 +69,7 @@ export default async function handler(req, res) {
     );
 
     const inv = await resp.json();
-    console.log("MOYASAR VERIFY RESULT:", inv);
+    console.log("MOYASAR VERIFY RESULT (CALLBACK):", inv);
 
     if (!resp.ok) {
       console.error("callback verify error:", inv);
@@ -90,6 +91,9 @@ export default async function handler(req, res) {
     const metaEmail =
       inv?.metadata?.customer_email || inv?.metadata?.email || null;
 
+    const metaUserId =
+      inv?.metadata?.user_id || inv?.metadata?.userId || null;
+
     // ✔️ قراءة بيانات الترقية / التير
     const newTierRaw =
       inv?.metadata?.new_tier ||
@@ -99,13 +103,14 @@ export default async function handler(req, res) {
 
     const upgradeFlag =
       inv?.metadata?.upgrade === true ||
-      inv?.metadata?.upgrade === "true";
+      inv?.metadata?.upgrade === "true" ||
+      inv?.metadata?.mode === "upgrade";
 
     const newTier = newTierRaw
-      ? newTierRaw.toString().toLowerCase()
+      ? newTierRaw.toString().toLowerCase().trim()
       : "basic";
 
-    const normalizedTier = ["basic", "pro", "premium"].includes(newTier)
+    let normalizedTier = ["basic", "pro", "premium"].includes(newTier)
       ? newTier
       : "basic";
 
@@ -116,8 +121,11 @@ export default async function handler(req, res) {
       normalizedTier
     );
 
-    // تحديث الطلب
+    // ===============================
+    // 1) تحديث / إنشاء Order
+    // ===============================
     let order = null;
+
     try {
       order = await prisma.order.update({
         where: { invoiceId },
@@ -128,33 +136,74 @@ export default async function handler(req, res) {
         },
       });
     } catch (e) {
-      console.warn("Order update failed, trying find:", e);
-      order = await prisma.order
-        .findUnique({ where: { invoiceId } })
-        .catch(() => null);
+      console.warn("Order update by invoiceId failed, trying find:", e);
+
+      // لو ما لقينا بـ invoiceId، نحاول نلقط آخر طلب pending لنفس المستخدم (خاصة في الترقية)
+      try {
+        if (metaUserId) {
+          order = await prisma.order.findFirst({
+            where: {
+              userId: Number(metaUserId),
+              status: "pending",
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          if (order) {
+            order = await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                invoiceId, // نربط الفاتورة الصحيحة
+                status: isPaid ? "paid" : inv?.status || "unknown",
+                finalAmount: amountCents ?? undefined,
+                currency: currency ?? undefined,
+              },
+            });
+          }
+        }
+      } catch (ee) {
+        console.warn("Order findFirst/update by userId failed:", ee);
+      }
+
+      if (!order) {
+        // في أسوأ الأحوال ننشئ order جديد
+        order = await prisma.order.create({
+          data: {
+            invoiceId,
+            userId: metaUserId ? Number(metaUserId) : undefined,
+            amount: amountCents ?? 0,
+            finalAmount: amountCents ?? 0,
+            currency: currency || "SAR",
+            status: isPaid ? "paid" : inv?.status || "unknown",
+            gateway: "moyasar",
+          },
+        });
+      }
     }
 
-        // المستخدم
-        const metaUserId =
-        inv?.metadata?.user_id || inv?.metadata?.userId || null;
-  
-      let targetUserId = order?.userId ? Number(order.userId) : undefined;
-  
-      if (!targetUserId && metaUserId)
-        targetUserId = Number(metaUserId);
-  
-      if (!targetUserId && metaEmail) {
-        const u = await prisma.user
-          .findUnique({ where: { email: metaEmail } })
-          .catch(() => null);
-        if (u) targetUserId = u.id;
-      }
-    // تحديث اشتراك المستخدم
-    if (targetUserId) {
+    // ===============================
+    // 2) تحديد المستخدم المستهدف
+    // ===============================
+    let targetUserId = null;
+
+    if (order?.userId) targetUserId = Number(order.userId);
+    else if (metaUserId) targetUserId = Number(metaUserId);
+
+    if (!targetUserId && metaEmail) {
+      const u = await prisma.user
+        .findUnique({ where: { email: metaEmail } })
+        .catch(() => null);
+      if (u) targetUserId = u.id;
+    }
+
+    // ===============================
+    // 3) تحديث اشتراك المستخدم
+    // ===============================
+    if (isPaid && targetUserId) {
       await prisma.user.update({
         where: { id: Number(targetUserId) },
         data: {
-          isSubscribed: isPaid,
+          isSubscribed: true,
           subscriptionTier: normalizedTier,
         },
       });
@@ -169,8 +218,15 @@ export default async function handler(req, res) {
         "INVOICE:",
         invoiceId
       );
-    } else {
-      console.warn("CALLBACK → NO USER FOUND FOR INVOICE", invoiceId);
+    } else if (isPaid && !targetUserId) {
+      console.warn(
+        "CALLBACK → PAID BUT NO USER FOUND FOR INVOICE",
+        invoiceId,
+        "META user_id:",
+        metaUserId,
+        "EMAIL:",
+        metaEmail
+      );
     }
 
     return res
