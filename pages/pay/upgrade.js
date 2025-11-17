@@ -67,7 +67,6 @@ export async function getServerSideProps({ req, query }) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
-    // عنوان الموقع (عدّل لو اسم المتغيّر عندك مختلف)
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
@@ -82,7 +81,12 @@ export async function getServerSideProps({ req, query }) {
       `FitLife upgrade to ${target.toUpperCase()} (user #${user.id})`
     );
     body.set("callback_url", `${baseUrl}/api/pay/callback`);
-    body.set("return_url", `${baseUrl}/pay/success`);
+    
+    // 🔥 أهم تعديل — success_url وليس return_url
+    body.set(
+      "success_url",
+      `${baseUrl}/pay/success?id={id}&invoice_id={id}`
+    );
 
     // metadata
     body.set("metadata[user_id]", String(user.id));
@@ -107,7 +111,6 @@ export async function getServerSideProps({ req, query }) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
-    // ✅ نحفظ رقم الفاتورة في order (اختياري، verify/callback يقدّر يتصرف حتى لو ما حفظناه هنا)
     try {
       await prisma.order.upsert({
         where: { invoiceId: inv.id },
@@ -128,7 +131,6 @@ export async function getServerSideProps({ req, query }) {
       console.error("UPGRADE ORDER UPSERT ERROR:", e);
     }
 
-    // 🔁 حوّل المستخدم مباشرة لصفحة الفاتورة
     return {
       redirect: {
         destination: inv.url,
@@ -141,13 +143,9 @@ export async function getServerSideProps({ req, query }) {
   }
 }
 
-// صفحة بسيطة لو أحد فتح /pay/upgrade مباشرة بدون SSR (ما توصل غالبًا)
 export default function UpgradeRedirect() {
   return (
-    <div
-      className="min-h-screen flex items-center justify-center text-gray-700"
-      dir="rtl"
-    >
+    <div className="min-h-screen flex items-center justify-center text-gray-700" dir="rtl">
       <p>جاري تحويلك إلى صفحة الدفع…</p>
     </div>
   );

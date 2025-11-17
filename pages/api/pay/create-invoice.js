@@ -3,9 +3,9 @@ import { getUserFromRequest } from "../../../middleware/auth";
 import prisma from "../../../lib/prisma";
 
 const PLAN_PRICES_HALALA = {
-  basic: 100,   // 1 SAR (تجريبي)
-  pro: 100,     // 1 SAR (تجريبي)
-  premium: 100, // 1 SAR (تجريبي)
+  basic: 1000,   // 10 SAR
+  pro: 2900,     // 29 SAR
+  premium: 4900, // 49 SAR
 };
 
 export default async function handler(req, res) {
