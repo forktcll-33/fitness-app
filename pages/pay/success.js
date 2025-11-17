@@ -15,44 +15,30 @@ export default function PaySuccess() {
 
     const q = router.query || {};
 
-    // ✅ 1) حاول نجيب id من localStorage أولاً
-    let invId = null;
-    if (typeof window !== "undefined") {
-      try {
-        invId = localStorage.getItem("pay_inv") || null;
-      } catch {
-        invId = null;
-      }
+    // 👈 نفضّل invoice_id أولاً، ثم المخزّن، ثم id (لو كان فعلاً Invoice)
+    let invId =
+      q.invoice_id ||
+      q.invoiceId ||
+      (typeof window !== "undefined" && localStorage.getItem("pay_inv")) ||
+      q.id;
+
+    if (invId && invId === "{id}") {
+      invId = null;
     }
 
-    // ✅ 2) لو ما لقيناه، نجرب من الـ query مع تجاهل "{id}"
-    if (!invId) {
-      const fromQuery =
-        q.id || q.invoice_id || q.invoiceId || null;
-
-      if (fromQuery && fromQuery !== "{id}") {
-        invId = String(fromQuery);
-      }
-    }
-
-    // ✅ 3) لو لقينا invId حقيقي نخزنه (اختياري)
-    if (invId && invId !== "{id}") {
+    if (invId) {
       try {
         localStorage.setItem("pay_inv", String(invId));
       } catch {}
     }
 
-    // ❌ ما في رقم فاتورة: نكتفي بالتحويل للداشبورد
-    // (في الترقية، الكول باك يحدث الاشتراك)
-    if (!invId || invId === "{id}") {
+    if (!invId) {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
       router.replace("/dashboard?paid=1");
       return;
     }
 
-    // ============================
-    //      verify loop
-    // ============================
+    // مهلة قصوى
     hardTimeoutId = setTimeout(() => {
       if (canceled) return;
       setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
@@ -86,6 +72,7 @@ export default function PaySuccess() {
             localStorage.removeItem("pay_inv");
           } catch {}
 
+          // توليد الخطة بعد الدفع
           fetch("/api/plan/generate", {
             method: "POST",
             credentials: "include",
@@ -97,7 +84,7 @@ export default function PaySuccess() {
           return;
         }
       } catch {
-        // تجاهل
+        // تجاهل ونحاول مرة ثانية
       }
 
       if (!canceled) {

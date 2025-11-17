@@ -40,10 +40,12 @@ export async function getServerSideProps({ req, query }) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
+    // لو يحاول يرقّي لنفس الخطة
     if (target === currentTier) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
+    // أسعار الخطط
     const PRICE = {
       basic: 10,
       pro: 29,
@@ -55,6 +57,7 @@ export async function getServerSideProps({ req, query }) {
 
     const diff = PRICE[target] - PRICE[safeCurrent];
     if (!diff || diff <= 0) {
+      // مافي فرق يدفعه
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
@@ -69,17 +72,27 @@ export async function getServerSideProps({ req, query }) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://fitlife.com.sa";
 
+    // 🔥 إنشاء الفاتورة مع ميسّر بمبلغ الفرق فقط
     const body = new URLSearchParams();
-    body.set("amount", String(diff * 100));
+    body.set("amount", String(diff * 100)); // بالهللة
     body.set("currency", "SAR");
     body.set(
       "description",
       `FitLife upgrade to ${target.toUpperCase()} (user #${user.id})`
     );
-    body.set("callback_url", `${baseUrl}/api/pay/callback`);
-    body.set("success_url", `${baseUrl}/pay/success`);
-    body.set("back_url", `${baseUrl}/pay/success`);
 
+    // 👈 مهم: نخلي invoice_id={id} عشان /pay/success تعرف رقم الفاتورة الصحيح
+    body.set(
+      "success_url",
+      `${baseUrl}/pay/success?invoice_id={id}`
+    );
+    body.set(
+      "back_url",
+      `${baseUrl}/pay/success?invoice_id={id}`
+    );
+    body.set("callback_url", `${baseUrl}/api/pay/callback`);
+
+    // metadata
     body.set("metadata[user_id]", String(user.id));
     body.set("metadata[customer_email]", user.email || "");
     body.set("metadata[subscription_tier]", target);
@@ -104,6 +117,7 @@ export async function getServerSideProps({ req, query }) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
+    // ✅ نحفظ رقم الفاتورة في order
     try {
       await prisma.order.upsert({
         where: { invoiceId: inv.id },
@@ -124,6 +138,7 @@ export async function getServerSideProps({ req, query }) {
       console.error("UPGRADE ORDER UPSERT ERROR:", e);
     }
 
+    // 🔁 حوّل المستخدم مباشرة لصفحة الفاتورة
     return {
       redirect: {
         destination: inv.url,
@@ -136,6 +151,7 @@ export async function getServerSideProps({ req, query }) {
   }
 }
 
+// صفحة بسيطة لو أحد فتح /pay/upgrade مباشرة بدون SSR (ما توصل غالبًا)
 export default function UpgradeRedirect() {
   return (
     <div
