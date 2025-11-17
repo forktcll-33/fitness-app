@@ -18,12 +18,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Payment config error" });
     }
 
-    // روابط ثابتة
     const callbackUrl = "https://fitlife.com.sa/api/pay/callback";
-    const returnUrl =
-      "https://fitlife.com.sa/pay/success?id={id}&invoice_id={id}";
+    const returnUrl = "https://fitlife.com.sa/pay/success";  // 👈 بدون {id}
 
-    // مدخلات
     const {
       amount,
       currency,
@@ -33,11 +30,9 @@ export default async function handler(req, res) {
       tier,
     } = req.body || {};
 
-    // tier من البودي
     const tierKey =
       typeof tier === "string" ? tier.toLowerCase().trim() : null;
 
-    // لو tier معروف نستخدم سعره، غير كذا نرجع لـ basic (1 ريال الآن)
     let amountHalalaBase =
       tierKey && PLAN_PRICES_HALALA[tierKey]
         ? PLAN_PRICES_HALALA[tierKey]
@@ -46,7 +41,6 @@ export default async function handler(req, res) {
     const curr = currency || "SAR";
     const desc = description || "خطة FitLife";
 
-    // المستخدم
     let customerName = nameFromBody || "عميل FitLife";
     let customerEmail = emailFromBody || "no-email@fitlife.app";
     let userId = null;
@@ -65,7 +59,6 @@ export default async function handler(req, res) {
       }
     } catch {}
 
-    // دايم يكون string واضح
     const safeTier = tierKey || "basic";
 
     const auth = "Basic " + Buffer.from(`${secret}:`).toString("base64");
@@ -75,15 +68,14 @@ export default async function handler(req, res) {
       currency: curr,
       description: desc,
       callback_url: callbackUrl,
-      success_url: returnUrl,
-      back_url: returnUrl, // لو رجع من صفحة ميسر
+      success_url: returnUrl, // 👈
+      back_url: returnUrl,    // 👈
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
-        // الاثنين نفس الشي الآن عشان الكول باك يلقطه أكيد
         subscription_tier: safeTier,
         new_tier: safeTier,
-        upgrade: false, // الاشتراك العادي (مو ترقية)
+        upgrade: false,
       },
     };
 

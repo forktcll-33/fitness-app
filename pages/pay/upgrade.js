@@ -40,12 +40,10 @@ export async function getServerSideProps({ req, query }) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
-    // لو يحاول يرقّي لنفس الخطة
     if (target === currentTier) {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
-    // أسعار الخطط
     const PRICE = {
       basic: 10,
       pro: 29,
@@ -57,7 +55,6 @@ export async function getServerSideProps({ req, query }) {
 
     const diff = PRICE[target] - PRICE[safeCurrent];
     if (!diff || diff <= 0) {
-      // مافي فرق يدفعه
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
@@ -72,27 +69,22 @@ export async function getServerSideProps({ req, query }) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://fitlife.com.sa";
 
-    // 🔥 إنشاء الفاتورة مع ميسّر بمبلغ الفرق فقط
     const body = new URLSearchParams();
-    body.set("amount", String(diff * 100)); // بالهللة
+    body.set("amount", String(diff * 100));
     body.set("currency", "SAR");
     body.set(
       "description",
       `FitLife upgrade to ${target.toUpperCase()} (user #${user.id})`
     );
     body.set("callback_url", `${baseUrl}/api/pay/callback`);
-    
-    // 🔥 أهم تعديل — success_url وليس return_url
-    body.set(
-      "success_url",
-      `${baseUrl}/pay/success?id={id}&invoice_id={id}`
-    );
+    body.set("success_url", `${baseUrl}/pay/success`); // 👈 بدون {id}
 
-    // metadata
     body.set("metadata[user_id]", String(user.id));
     body.set("metadata[customer_email]", user.email || "");
     body.set("metadata[subscription_tier]", target);
+    body.set("metadata[new_tier]", target);
     body.set("metadata[mode]", "upgrade");
+    body.set("metadata[upgrade]", "true");
 
     const resp = await fetch("https://api.moyasar.com/v1/invoices", {
       method: "POST",
@@ -145,7 +137,10 @@ export async function getServerSideProps({ req, query }) {
 
 export default function UpgradeRedirect() {
   return (
-    <div className="min-h-screen flex items-center justify-center text-gray-700" dir="rtl">
+    <div
+      className="min-h-screen flex items-center justify-center text-gray-700"
+      dir="rtl"
+    >
       <p>جاري تحويلك إلى صفحة الدفع…</p>
     </div>
   );

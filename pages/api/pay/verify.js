@@ -4,7 +4,9 @@ import { getUserFromRequest } from "../../../middleware/auth";
 
 export default async function handler(req, res) {
   const { id } = req.query;
-  if (!id) return res.status(400).json({ error: "invoice id مطلوب" });
+  if (id === "{id}") {
+    return res.status(400).json({ error: "invoice id غير صالح" });
+  }
 
   const secret = process.env.MOYASAR_SECRET_KEY;
   if (!secret)

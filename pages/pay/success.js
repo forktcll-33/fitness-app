@@ -14,25 +14,45 @@ export default function PaySuccess() {
     let hardTimeoutId = null;
 
     const q = router.query || {};
-    const invId =
-      q.id ||
-      q.invoice_id ||
-      q.invoiceId ||
-      (typeof window !== "undefined" && localStorage.getItem("pay_inv"));
 
-    if (invId) {
+    // ✅ 1) حاول نجيب id من localStorage أولاً
+    let invId = null;
+    if (typeof window !== "undefined") {
+      try {
+        invId = localStorage.getItem("pay_inv") || null;
+      } catch {
+        invId = null;
+      }
+    }
+
+    // ✅ 2) لو ما لقيناه، نجرب من الـ query مع تجاهل "{id}"
+    if (!invId) {
+      const fromQuery =
+        q.id || q.invoice_id || q.invoiceId || null;
+
+      if (fromQuery && fromQuery !== "{id}") {
+        invId = String(fromQuery);
+      }
+    }
+
+    // ✅ 3) لو لقينا invId حقيقي نخزنه (اختياري)
+    if (invId && invId !== "{id}") {
       try {
         localStorage.setItem("pay_inv", String(invId));
       } catch {}
     }
 
-    if (!invId) {
+    // ❌ ما في رقم فاتورة: نكتفي بالتحويل للداشبورد
+    // (في الترقية، الكول باك يحدث الاشتراك)
+    if (!invId || invId === "{id}") {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
       router.replace("/dashboard?paid=1");
       return;
     }
 
-    // مهلة قصوى أقصر شوي
+    // ============================
+    //      verify loop
+    // ============================
     hardTimeoutId = setTimeout(() => {
       if (canceled) return;
       setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
@@ -108,7 +128,6 @@ export default function PaySuccess() {
       dir="rtl"
     >
       <p className="text-lg">{msg}</p>
-      {/* شلنا سطر رقم الفاتورة */}
     </div>
   );
 }
