@@ -93,7 +93,8 @@ export async function getServerSideProps({ req, query }) {
     body.set("callback_url", `${baseUrl}/api/pay/callback`);
 
     // metadata
-    body.set("metadata[user_id]", String(user.id));
+    body.set("metadata[user_id]", String(user.id)); // optional
+    body.set("metadata[userId]", String(user.id));  // required
     body.set("metadata[customer_email]", user.email || "");
     body.set("metadata[subscription_tier]", target);
     body.set("metadata[new_tier]", target);
