@@ -75,6 +75,7 @@ export default async function handler(req, res) {
         customer_email: customerEmail,
         subscription_tier: safeTier,
         new_tier: safeTier,
+        tier: safeTier, 
         upgrade: false,
         user_id: userId,   // ← هذا هو المفتاح
       },

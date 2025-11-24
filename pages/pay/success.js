@@ -80,7 +80,13 @@ export default function PaySuccess() {
 
           if (hardTimeoutId) clearTimeout(hardTimeoutId);
 
-          router.replace("/dashboard?paid=1");
+          // 🔥 التوجيه الصحيح إلى صفحة Premium
+          if (data?.tier === "premium") {
+            router.replace("/premium");
+          } else {
+            router.replace("/dashboard?paid=1");
+          }
+
           return;
         }
       } catch {
@@ -94,7 +100,13 @@ export default function PaySuccess() {
         } else {
           setMsg("تم الدفع. سيتم تحويلك الآن…");
           if (hardTimeoutId) clearTimeout(hardTimeoutId);
-          router.replace("/dashboard?paid=1");
+
+          // 🔥 لو خلصت المحاولات بدون رد
+          if (data?.tier === "premium") {
+            router.replace("/premium");
+          } else {
+            router.replace("/dashboard?paid=1");
+          }
         }
       }
     };
