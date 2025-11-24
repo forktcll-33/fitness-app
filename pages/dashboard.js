@@ -91,7 +91,7 @@ export default function Dashboard({ user }) {
     : "basic";
   const isProOrPremium =
     subscriptionTier === "pro" || subscriptionTier === "premium";
-
+    const isPro = subscriptionTier === "pro";
   // Hotfix: لمنع كراش السيرفر إذا بقيت إشارات لـ data في JSX
   const data = null;
 
@@ -181,14 +181,26 @@ export default function Dashboard({ user }) {
                   لوحة التحكم
                 </h2>
               {/* زر ترقية الاشتراك — يظهر فقط لاشتراك Basic */}
-              {user.subscriptionTier === "basic" && (
-              <button
-               onClick={() => router.push("/subscription/upgrade")}
-                className="mt-2 inline-flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm hover:bg-yellow-600"
-               >
-                🚀 ترقية الاشتراك
-               </button>
-               )}
+              {/* زر ترقية الاشتراك — يظهر فقط لاشتراك Basic */}
+{user.subscriptionTier === "basic" && (
+  <button
+    onClick={() => router.push("/subscription/upgrade")}
+    className="mt-2 inline-flex items-center px-4 py-2 rounded-lg bg-yellow-500 text-white text-sm hover:bg-yellow-600"
+  >
+    🚀 ترقية الاشتراك
+  </button>
+)}
+
+{/* 🔥 زر ترقية إلى Premium لمشتركي Pro فقط */}
+{isPro && (
+  <button
+    onClick={() => router.push("/pay/upgrade?target=premium")}
+    className="mt-2 inline-flex items-center px-4 py-2 rounded-lg bg-yellow-600 text-white text-sm hover:bg-yellow-700"
+  >
+    ⭐ ترقية إلى Premium
+  </button>
+)}
+               
                 {/* مخطط الوزن (لـ Pro/Premium فقط) */}
                 <WeightChart data={data} />
 

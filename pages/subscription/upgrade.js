@@ -103,11 +103,16 @@ export default function UpgradePage({ tier }) {
             </ul>
 
             <button
-              onClick={() => router.push(`/pay/upgrade?target=premium`)}
-              className="w-full py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
-            >
-              ترقية إلى Premium — {diff.toPremium} ريال
-            </button>
+  onClick={() => router.push(`/pay/upgrade?target=premium`)}
+  className={`w-full py-2 text-white rounded-lg ${
+    tier === "pro"
+      ? "bg-yellow-500 hover:bg-yellow-600"
+      : "bg-gray-300 cursor-not-allowed"
+  }`}
+  disabled={tier !== "pro"}
+>
+  ترقية إلى Premium — {diff.toPremium} ريال
+</button>
           </div>
 
         </div>
