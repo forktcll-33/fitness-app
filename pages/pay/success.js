@@ -34,8 +34,14 @@ export default function PaySuccess() {
 
     if (!invId) {
       setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
-      router.replace("/dashboard?paid=1");
-      return;
+      // 👈 التوجيه بعد الدفع حسب نوع الاشتراك
+if (data.tier === "premium") {
+  router.replace("/premium");
+} else {
+  router.replace("/dashboard?paid=1");
+}
+return;
+      
     }
 
     // مهلة قصوى
