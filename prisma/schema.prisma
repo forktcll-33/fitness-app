@@ -26,7 +26,7 @@ model User {
   passwordHash String
   isSubscribed Boolean @default(false)
   role         String  @default("user")
-  
+
   subscriptionTier SubscriptionTier @default(basic)
   // علاقات
   orders       Order[]
@@ -50,6 +50,7 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+    wellness   Wellness[]     // ← علاقة المستخدم مع سجلات الرفاهية
 }
 
 model Announcement {
@@ -105,4 +106,20 @@ model WeightLog {
   user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId, date])
+}
+
+model Wellness {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+
+  date      DateTime @default(now())  // تاريخ اليوم
+  water     Int      @default(0)      // عدد أكواب الماء
+  sleep     Int      @default(0)      // ساعات النوم
+  steps     Int      @default(0)      // عدد الخطوات
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])   // سطر مهم: يمنع تكرار سجل لنفس اليوم
 }
