@@ -27,22 +27,37 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
     }
 
-    // ✅ إنشاء JWT
+    // ✅ إنشاء JWT جديد
     const token = jwt.sign(
       { id: user.id.toString(), email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // ✅ تخزينه في Cookie
-    const cookie = serialize(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // أسبوع
-    });
-    res.setHeader("Set-Cookie", cookie);
+    // ============================================
+    //  🔥 الحل: إزالة الكوكي القديمة + وضع الجديدة
+    // ============================================
+    res.setHeader("Set-Cookie", [
+      // حذف أي كوكي قديم
+      serialize(COOKIE_NAME, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      }),
+
+      // إنشاء كوكي جديدة نظيفة
+      serialize(COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // أسبوع
+      }),
+    ]);
+
+    // ============================================
 
     // ✅ تحديد الوجهة
     const missingData =
@@ -54,13 +69,13 @@ export default async function handler(req, res) {
       !user.goal;
 
     let redirect = "/dashboard";
+
     if ((user.role || "").toUpperCase() === "ADMIN") {
       redirect = "/admin";
     } else if (missingData) {
       redirect = "/onboarding";
     }
 
-    // ✅ رجوع منسق دائمًا
     return res.status(200).json({
       ok: true,
       message: "تم تسجيل الدخول بنجاح",

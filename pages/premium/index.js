@@ -470,38 +470,49 @@ export default function PremiumHome({ userName, basePlan }) {
           </div>
 
           {/* الإحصائيات */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
-              <div className="text-[10px] text-gray-400 mb-1">السعرات</div>
-              <div className="text-lg font-bold text-yellow-300">
-                {totalCals ? `${totalCals} kcal` : "—"}
-              </div>
-            </div>
+<div className="grid grid-cols-2 gap-3 text-xs">
+  <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+    <div className="text-[10px] text-gray-400 mb-1">السعرات</div>
+    <div className="text-lg font-bold text-yellow-300">
+      {totalCals ? `${totalCals} kcal` : "—"}
+    </div>
+  </div>
 
-            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
-              <div className="text-[10px] text-gray-400 mb-1">
-                البروتين / الكارب / الدهون
-              </div>
-              <div className="text-xs font-semibold text-gray-100">
-                P: {protein || "-"}g • C: {carbs || "-"}g • F: {fat || "-"}g
-              </div>
-            </div>
+  <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+    <div className="text-[10px] text-gray-400 mb-1">
+      البروتين / الكارب / الدهون
+    </div>
+    <div className="text-xs font-semibold text-gray-100">
+      P: {protein || "-"}g • C: {carbs || "-"}g • F: {fat || "-"}g
+    </div>
+  </div>
 
-            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
-              <div className="text-[10px] text-gray-400 mb-1">أدوات Premium</div>
-              <div className="text-xs text-gray-100">
-                Meal Swap • Daily Meals • Wellness • Gifts
-              </div>
-            </div>
+  <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+    <div className="text-[10px] text-gray-400 mb-1">أدوات Premium</div>
+    <div className="text-xs text-gray-100">
+      Meal Swap • Daily Meals • Wellness • Gifts
+    </div>
+  </div>
 
-            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
-              <div className="text-[10px] text-gray-400 mb-1">الوصول السريع</div>
-              <div className="text-xs text-yellow-200">
-                استخدم الروابط أدناه للتنقل بين أدوات Premium
-              </div>
-            </div>
-          </div>
-        </header>
+  <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+    <div className="text-[10px] text-gray-400 mb-1">الوصول السريع</div>
+    <div className="text-xs text-yellow-200">
+      استخدم الروابط أدناه للتنقل بين أدوات Premium
+    </div>
+  </div>
+</div>
+
+{/* زر تسجيل الخروج */}
+<div className="flex justify-end mt-2">
+  <a
+    href="/logout"
+    className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-xl bg-red-600/80 border border-red-600 text-white hover:bg-red-500 transition font-semibold"
+  >
+    تسجيل الخروج
+  </a>
+</div>
+
+</header>
 
         {/* الشبكة الرئيسية */}
         <main className="space-y-8">

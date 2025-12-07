@@ -419,6 +419,12 @@ export default function PremiumTraining({ userName }) {
 
   return (
     <div className="min-h-screen bg-[#020617] text-gray-100" dir="rtl">
+        <a
+  href="/premium"
+  className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gray-600 hover:bg-black/60 text-gray-200 transition w-fit mb-4"
+>
+  ← رجوع
+</a>
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
         {/* HERO */}
         <header className="rounded-3xl bg-gradient-to-l from-emerald-500/20 via-emerald-500/10 to-transparent border border-emerald-500/40 p-6 lg:p-8 shadow-xl shadow-emerald-500/10">

@@ -93,6 +93,12 @@ const PACKS = [
 export default function PremiumGifts({ userName }) {
   return (
     <div className="min-h-screen bg-[#020617] text-gray-100" dir="rtl">
+        <a
+  href="/premium"
+  className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gray-600 hover:bg-black/60 text-gray-200 transition w-fit mb-4"
+>
+  ← رجوع
+</a>
       <div className="max-w-5xl mx-auto px-4 py-10 space-y-8">
         {/* HERO */}
         <header className="rounded-3xl bg-gradient-to-l from-yellow-500/20 via-yellow-500/10 to-transparent border border-yellow-500/40 p-6 lg:p-8 flex flex-col gap-4 shadow-xl shadow-yellow-500/10">

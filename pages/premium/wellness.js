@@ -85,6 +85,12 @@ export default function Wellness({ userId, userName, initialRecord }) {
 
   return (
     <div className="min-h-screen bg-white" dir="rtl">
+        <a
+  href="/premium"
+  className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gray-600 hover:bg-black/60 text-gray-200 transition w-fit mb-4"
+>
+  ← رجوع
+</a>
       {/* HERO */}
       <div className="text-center py-14 border-b border-gray-100">
         <CheckCircle2 className="mx-auto w-12 h-12 text-yellow-600" />
