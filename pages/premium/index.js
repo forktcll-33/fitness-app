@@ -1,5 +1,4 @@
 // pages/premium/index.js
-import { useState } from "react";
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
 import {
@@ -9,9 +8,16 @@ import {
   ListChecks,
   Dumbbell,
   MessageCircle,
+  Utensils,
+  Droplets,
+  Footprints,
+  MoonStar,
 } from "lucide-react";
+import { useState } from "react";
 
-// ========== SSR ==========
+// =====================================
+// SSR — التحقق من المستخدم والخطة
+// =====================================
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
   const token = cookie
@@ -38,12 +44,12 @@ export async function getServerSideProps({ req }) {
     if (!user)
       return { redirect: { destination: "/login", permanent: false } };
 
-    // يسمح فقط لمشتركي Premium
+    // فقط لمشتركي Premium
     if ((user.subscriptionTier || "").toLowerCase() !== "premium") {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
-    // نحاول قراءة الخطة من JSON
+    // تجهيز الخطة الأساسية
     let basePlan = null;
     if (user.plan) {
       try {
@@ -72,8 +78,10 @@ export async function getServerSideProps({ req }) {
   }
 }
 
-// ========== 1 — بناء الخطة الأسبوعية ==========
-function buildWeeklyPlan(basePlan) {
+/* ======================================================
+   1) دالة الأسبوع الاحترافي — Weekly Plan Pro (A)
+   ====================================================== */
+function buildWeeklyPlanPro(basePlan) {
   const days = [
     "السبت",
     "الأحد",
@@ -91,370 +99,705 @@ function buildWeeklyPlan(basePlan) {
       protein: null,
       carbs: null,
       fat: null,
-      focus: "— لا توجد خطة غذائية محسوبة بعد —",
+      focus: "لا توجد خطة غذائية محسوبة بعد",
       meals: [],
     }));
   }
 
   const { calories, protein, carbs, fat } = basePlan;
 
-  const variation = [0, -100, -50, 0, 50, 0, -150];
+  const variation = {
+    high: +150,
+    moderate: 0,
+    low: -200,
+  };
 
-  return days.map((dayName, idx) => {
-    const cals = calories + (variation[idx] || 0);
+  const cycle = [
+    "moderate",
+    "high",
+    "moderate",
+    "low",
+    "high",
+    "moderate",
+    "low",
+  ];
 
-    const breakfast = Math.round(cals * 0.25);
-    const lunch = Math.round(cals * 0.4);
-    const dinner = Math.round(cals * 0.25);
-    const snack = Math.round(cals * 0.1);
+  const focusMap = {
+    high: "يوم عالي الطاقة — أداء قوي 💪🔥",
+    moderate: "يوم متوسط — استقرار غذائي",
+    low: "يوم منخفض — إعادة ضبط وتعافي 🌿",
+  };
 
-    let focus = "يوم متوازن";
-    if (idx === 0) focus = "بداية أسبوع قوية — التزام كامل";
-    if (idx === 3) focus = "يوم إعادة ضبط خفيف";
-    if (idx === 4) focus = "تركيز أعلى على البروتين";
-    if (idx === 6) focus = "يوم خفيف قبل بداية أسبوع جديد";
+  return days.map((day, idx) => {
+    const level = cycle[idx];
+    const diff = variation[level];
+    const total = calories + diff;
+
+    const meals = [
+      {
+        type: "فطور",
+        kcals: Math.round(total * 0.25),
+        protein,
+        carbs,
+        fat,
+      },
+      {
+        type: "غداء",
+        kcals: Math.round(total * 0.4),
+        protein,
+        carbs,
+        fat,
+      },
+      {
+        type: "عشاء",
+        kcals: Math.round(total * 0.25),
+        protein,
+        carbs,
+        fat,
+      },
+      {
+        type: "سناك",
+        kcals: Math.round(total * 0.1),
+        protein,
+        carbs,
+        fat,
+      },
+    ];
 
     return {
-      day: dayName,
-      calories: cals,
-      protein,
-      carbs,
-      fat,
-      focus,
-      meals: [
-        {
-          type: "فطور",
-          kcals: breakfast,
-          note: "بيض + خبز بر + خضار + قهوة بدون سكر",
-        },
-        {
-          type: "غداء",
-          kcals: lunch,
-          note: "صدر دجاج / لحم قليل الدهن + رز / بطاط",
-        },
-        {
-          type: "عشاء",
-          kcals: dinner,
-          note: "تونة / جبن قليل الدسم + خضار",
-        },
-        {
-          type: "سناك",
-          kcals: snack,
-          note: "زبادي يوناني + مكسرات",
-        },
-      ],
+      day,
+      calories: total,
+      focus: focusMap[level],
+      meals,
     };
   });
 }
 
-// ========== 2 — بدائل الوجبات ==========
-function SmartMealSwap({ basePlan }) {
-  const [selected, setSelected] = useState("breakfast");
-
-  const kcal = basePlan?.calories || 2000;
-
-  const meals = {
-    breakfast: [
-      "بيض + خبز بر",
-      "شوفان + موز",
-      "زبادي يوناني + فواكه",
-    ],
-    lunch: [
-      "دجاج + رز",
-      "لحم + بطاط",
-      "سمك + خضار",
-    ],
-    dinner: [
-      "تونة + خبز",
-      "بيض + جبن لايت",
-      "شوفان بالحليب",
-    ],
-    snack: [
-      "موز + مكسرات",
-      "زبادي لايت",
-      "تفاحة + فول سوداني",
-    ],
-  };
-
-  return (
-    <div className="border rounded-2xl p-5 bg-white shadow-sm space-y-4">
-      <div className="flex items-center gap-3">
-        <CheckCircle2 className="w-6 h-6 text-green-600" />
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">
-            بدائل الوجبات الذكية
-          </h2>
-          <p className="text-sm text-gray-600">بدائل مناسبة بسعرات قريبة.</p>
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        {["breakfast", "lunch", "dinner", "snack"].map((m) => (
-          <button
-            key={m}
-            onClick={() => setSelected(m)}
-            className={`px-4 py-1.5 rounded-full text-sm border ${
-              selected === m
-                ? "bg-green-600 text-white"
-                : "bg-gray-100 text-gray-700"
-            }`}
-          >
-            {m === "breakfast"
-              ? "فطور"
-              : m === "lunch"
-              ? "غداء"
-              : m === "dinner"
-              ? "عشاء"
-              : "سناك"}
-          </button>
-        ))}
-      </div>
-
-      <ul className="list-disc pr-6 text-sm text-gray-700 space-y-1">
-        {meals[selected].map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// ========== 3 — خطة تدريب Premium ==========
-function PremiumTrainingPlan() {
-  const days = [
-    {
-      day: "السبت",
-      focus: "قوة — الجزء العلوي",
-      workouts: ["بنش برس", "ضغط كتف دمبل", "سحب أرضي", "تراي سبس"],
-    },
-    {
-      day: "الأحد",
-      focus: "كارديو زون 2",
-      workouts: ["مشي سريع 35 دقيقة", "جري 10 دقائق"],
-    },
-    {
-      day: "الاثنين",
-      focus: "قوة — الجزء السفلي",
-      workouts: ["سكوات", "لونجز", "Hip Thrust", "Leg Press"],
-    },
-    {
-      day: "الثلاثاء",
-      focus: "HIIT قوي",
-      workouts: ["20 دقيقة HIIT", "Burpees", "Mountain Climbers"],
-    },
-    {
-      day: "الأربعاء",
-      focus: "ظهر + باي",
-      workouts: ["Lat Pulldown", "Row", "Biceps Curl"],
-    },
-    {
-      day: "الخميس",
-      focus: "ركوب دراجة",
-      workouts: ["45 دقيقة زون 2", "10 دقائق زون 3"],
-    },
-    {
-      day: "الجمعة",
-      focus: "راحة / إستشفاء",
-      workouts: ["إطالات", "مشي 15 دقيقة"],
-    },
-  ];
-
-  return (
-    <div className="border rounded-2xl p-5 bg-white shadow-sm space-y-4">
-      <div className="flex items-center gap-3">
-        <Dumbbell className="w-6 h-6 text-blue-600" />
-        <h2 className="text-xl font-bold text-gray-900">خطة تدريب Premium</h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {days.map((d) => (
-          <div
-            key={d.day}
-            className="p-4 border rounded-xl bg-gray-50 space-y-1"
-          >
-            <h3 className="font-bold text-gray-900">{d.day}</h3>
-            <p className="text-blue-700 text-sm">{d.focus}</p>
-            <ul className="list-disc pr-5 text-xs text-gray-700">
-              {d.workouts.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-// ========== 4 — قائمة مشتريات أسبوعية ==========
-function GroceryList({ basePlan }) {
-    const proteinList = [
-      "صدر دجاج",
-      "تونة",
-      "بيض",
-      "لحم قليل الدهن",
-      "سمك سالمون",
-      "زبادي يوناني",
-    ];
+/* ======================================================
+   2) Meal Swap Pro — بدائل وجبات احترافية (B)
+   ====================================================== */
+   function MealSwapPro({ basePlan }) {
+    const [mealType, setMealType] = useState("breakfast");
+    const [choice, setChoice] = useState(null);
   
-    const carbList = [
-      "رز أبيض / بني",
-      "بطاط",
-      "شوفان",
-      "خبز بر",
-      "مكرونة قمح كامل",
-    ];
+    const calories = basePlan?.calories || 2000;
+    const totalProtein = basePlan?.protein || 130;
+    const totalCarbs = basePlan?.carbs || 180;
+    const totalFat = basePlan?.fat || 60;
   
-    const fatList = [
-      "أفوكادو",
-      "زيت زيتون",
-      "مكسرات",
-      "زبدة فول سوداني",
-    ];
+    const ratios = {
+      breakfast: 0.25,
+      lunch: 0.4,
+      dinner: 0.25,
+      snack: 0.1,
+    };
   
-    const veggieList = [
-      "خس",
-      "طماطم",
-      "خيار",
-      "فلفل رومي",
-      "بروكلي",
-    ];
+    const kcalsMap = {
+      breakfast: Math.round(calories * ratios.breakfast),
+      lunch: Math.round(calories * ratios.lunch),
+      dinner: Math.round(calories * ratios.dinner),
+      snack: Math.round(calories * ratios.snack),
+    };
   
-    const fruitList = [
-      "موز",
-      "تفاح",
-      "برتقال",
-      "توت",
-    ];
+    const proteinMap = {
+      breakfast: Math.round(totalProtein * ratios.breakfast),
+      lunch: Math.round(totalProtein * ratios.lunch),
+      dinner: Math.round(totalProtein * ratios.dinner),
+      snack: Math.round(totalProtein * ratios.snack),
+    };
+  
+    const carbsMap = {
+      breakfast: Math.round(totalCarbs * ratios.breakfast),
+      lunch: Math.round(totalCarbs * ratios.lunch),
+      dinner: Math.round(totalCarbs * ratios.dinner),
+      snack: Math.round(totalCarbs * ratios.snack),
+    };
+  
+    const fatMap = {
+      breakfast: Math.round(totalFat * ratios.breakfast),
+      lunch: Math.round(totalFat * ratios.lunch),
+      dinner: Math.round(totalFat * ratios.dinner),
+      snack: Math.round(totalFat * ratios.snack),
+    };
+  
+    const foodLibrary = {
+      breakfast: [
+        {
+          name: "بيض + توست بر + خضار",
+          calories: kcalsMap.breakfast,
+          protein: proteinMap.breakfast,
+          carbs: carbsMap.breakfast,
+          fat: fatMap.breakfast,
+          portions: "2 بيضة كبيرة (100 جم) • 2 توست بر (60 جم) • خضار حرة",
+        },
+        {
+          name: "شوفان بالحليب + موز",
+          calories: kcalsMap.breakfast,
+          protein: proteinMap.breakfast,
+          carbs: carbsMap.breakfast,
+          fat: fatMap.breakfast,
+          portions: "70 جم شوفان • 200 مل حليب خالي الدسم • 1 موزة (100 جم)",
+        },
+        {
+          name: "زبادي يوناني + مكسرات + عسل",
+          calories: kcalsMap.breakfast,
+          protein: proteinMap.breakfast,
+          carbs: carbsMap.breakfast,
+          fat: fatMap.breakfast,
+          portions: "170 جم زبادي • 15 جم مكسرات • 5 جم عسل",
+        },
+        {
+          name: "سندويتش جبن لايت + خضار",
+          calories: kcalsMap.breakfast,
+          protein: proteinMap.breakfast,
+          carbs: carbsMap.breakfast,
+          fat: fatMap.breakfast,
+          portions: "2 توست بر • 30 جم جبن لايت • شرائح خيار وطماطم",
+        },
+      ],
+      lunch: [
+        {
+          name: "صدر دجاج + رز أبيض + سلطة",
+          calories: kcalsMap.lunch,
+          protein: proteinMap.lunch,
+          carbs: carbsMap.lunch,
+          fat: fatMap.lunch,
+          portions: "150 جم دجاج مشوي • 150 جم رز مطبوخ • سلطة حرة",
+        },
+        {
+          name: "لحم قليل الدهن + بطاط مشوي",
+          calories: kcalsMap.lunch,
+          protein: proteinMap.lunch,
+          carbs: carbsMap.lunch,
+          fat: fatMap.lunch,
+          portions: "120 جم لحم • 200 جم بطاط مشوي • خضار جانبية",
+        },
+        {
+          name: "سمك مشوي + رز بني",
+          calories: kcalsMap.lunch,
+          protein: proteinMap.lunch,
+          carbs: carbsMap.lunch,
+          fat: fatMap.lunch,
+          portions: "150 جم سمك • 150 جم رز بني • خضار مطبوخة",
+        },
+        {
+          name: "دجاج + مكرونة قمح كامل",
+          calories: kcalsMap.lunch,
+          protein: proteinMap.lunch,
+          carbs: carbsMap.lunch,
+          fat: fatMap.lunch,
+          portions: "120 جم دجاج • 70–80 جم مكرونة (وزن جاف) • صوص طماطم خفيف",
+        },
+      ],
+      dinner: [
+        {
+          name: "تونة + خبز بر + خضار",
+          calories: kcalsMap.dinner,
+          protein: proteinMap.dinner,
+          carbs: carbsMap.dinner,
+          fat: fatMap.dinner,
+          portions: "1 علبة تونة مصفّاة (100 جم) • 2 توست بر • خضار حرة",
+        },
+        {
+          name: "بياض بيض + جبن لايت + خبز بر",
+          calories: kcalsMap.dinner,
+          protein: proteinMap.dinner,
+          carbs: carbsMap.dinner,
+          fat: fatMap.dinner,
+          portions: "4 بياض بيض • 30 جم جبن لايت • 1–2 توست بر",
+        },
+        {
+          name: "زبادي + فواكه + شوفان خفيف",
+          calories: kcalsMap.dinner,
+          protein: proteinMap.dinner,
+          carbs: carbsMap.dinner,
+          fat: fatMap.dinner,
+          portions: "170 جم زبادي • 80–100 جم فواكه • 20 جم شوفان",
+        },
+        {
+          name: "سلطة تونة أو دجاج",
+          calories: kcalsMap.dinner,
+          protein: proteinMap.dinner,
+          carbs: carbsMap.dinner,
+          fat: fatMap.dinner,
+          portions: "100–120 جم بروتين • خضار كثيرة • 10 جم زيت زيتون",
+        },
+      ],
+      snack: [
+        {
+          name: "مكسرات نيّة",
+          calories: kcalsMap.snack,
+          protein: proteinMap.snack,
+          carbs: carbsMap.snack,
+          fat: fatMap.snack,
+          portions: "20–25 جم مكسرات (لوز/جوز/كاجو)",
+        },
+        {
+          name: "فاكهة + قهوة سادة",
+          calories: kcalsMap.snack,
+          protein: proteinMap.snack,
+          carbs: carbsMap.snack,
+          fat: fatMap.snack,
+          portions: "1 حبة فاكهة (100–120 جم) + قهوة بدون سكر",
+        },
+        {
+          name: "بروتين شيك",
+          calories: kcalsMap.snack,
+          protein: proteinMap.snack,
+          carbs: carbsMap.snack,
+          fat: fatMap.snack,
+          portions: "1 سكوب واي (30 جم) + ماء أو حليب قليل الدسم",
+        },
+        {
+          name: "زبادي يوناني صغير + مكسرات",
+          calories: kcalsMap.snack,
+          protein: proteinMap.snack,
+          carbs: carbsMap.snack,
+          fat: fatMap.snack,
+          portions: "100 جم زبادي • 10 جم مكسرات",
+        },
+      ],
+    };
+  
+    const foods = foodLibrary[mealType];
   
     return (
-      <div className="border rounded-2xl p-5 bg-white shadow-sm space-y-4">
-        <div className="flex items-center gap-3">
-          <ListChecks className="w-7 h-7 text-purple-600" />
-          <h2 className="text-2xl font-bold text-gray-900">
-            قائمة مشتريات أسبوعية
-          </h2>
-        </div>
-  
-        <p className="text-gray-600 text-sm">
-          قائمة منظمة وجاهزة للتسوق بناءً على خطتك الحالية.
-        </p>
-  
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <Category title="بروتينات" items={proteinList} color="green" />
-          <Category title="كربوهيدرات" items={carbList} color="yellow" />
-          <Category title="دهون صحية" items={fatList} color="orange" />
-          <Category title="خضار" items={veggieList} color="lime" />
-          <Category title="فواكه" items={fruitList} color="pink" />
-        </div>
-      </div>
-    );
-  }
-  
-  function Category({ title, items, color }) {
-    return (
-      <div className="border rounded-xl p-4 bg-gray-50">
-        <h3 className={`font-bold text-${color}-700 mb-2`}>{title}</h3>
-        <ul className="list-disc pr-4 text-sm text-gray-700 space-y-1">
-          {items.map((i) => (
-            <li key={i}>{i}</li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
-
-// ========== صفحة Premium ==========
-export default function PremiumHome({ userName, basePlan }) {
-  const weeklyPlan = buildWeeklyPlan(basePlan);
-
-  return (
-    <div className="min-h-screen bg-white" dir="rtl">
-      {/* HERO */}
-      <div className="text-center py-16 bg-white border-b border-gray-100">
-        <Crown size={60} className="mx-auto text-yellow-500" />
-        <h1 className="text-4xl font-extrabold mt-4 text-gray-900">
-          FitLife Elite
-        </h1>
-        <p className="text-gray-600 mt-3 text-lg">
-          مرحبًا بك يا {userName} — أنت ضمن نخبة FitLife Premium ✨
-        </p>
-      </div>
-
-      <main className="max-w-6xl mx-auto p-6 space-y-10">
-        {/* 1 — الخطة الأسبوعية */}
-        <section>
-          <div className="flex items-center gap-3 mb-4">
-            <Sparkles className="w-7 h-7 text-yellow-500" />
-            <h2 className="text-2xl font-bold text-gray-900">
-              خطتك الأسبوعية الحالية
+      <section className="bg-[#111827] border border-yellow-500 rounded-2xl p-6 shadow-xl mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-yellow-400">
+              بدائل الوجبات الاحترافية
             </h2>
+            <p className="text-gray-400 text-sm">
+              اختر الوجبة، وبعدها بدّل بينها وبين خيارات ثانية بنفس السعرات تقريبًا.
+            </p>
+          </div>
+        </div>
+  
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          {["breakfast", "lunch", "dinner", "snack"].map((m) => (
+            <button
+              key={m}
+              onClick={() => setMealType(m)}
+              className={
+                "px-3 py-1.5 rounded-lg text-sm " +
+                (mealType === m
+                  ? "bg-yellow-500 text-black font-bold"
+                  : "bg-gray-800 text-gray-200")
+              }
+            >
+              {m === "breakfast" && "فطور"}
+              {m === "lunch" && "غداء"}
+              {m === "dinner" && "عشاء"}
+              {m === "snack" && "سناك"}
+            </button>
+          ))}
+        </div>
+  
+        {/* Options */}
+        <div className="grid md:grid-cols-2 gap-3">
+          {foods.map((food, idx) => (
+            <button
+              key={idx}
+              onClick={() => setChoice(food)}
+              className={
+                "border rounded-xl p-4 text-right transition " +
+                (choice?.name === food.name
+                  ? "border-yellow-400 bg-yellow-500/10"
+                  : "border-gray-700 bg-[#020617]")
+              }
+            >
+              <div className="text-gray-100 font-bold">{food.name}</div>
+              <div className="text-xs text-gray-400 mt-1">
+                {food.portions}
+              </div>
+              <div className="text-xs text-yellow-400 mt-2">
+                {food.calories} كالوري — P: {food.protein}g • C: {food.carbs}g • F:{" "}
+                {food.fat}g
+              </div>
+            </button>
+          ))}
+        </div>
+  
+        {/* Active choice */}
+        {choice && (
+          <div className="mt-4 border-t border-gray-700 pt-3 text-sm text-gray-300">
+            <div className="font-bold text-yellow-400 mb-1">الاختيار الحالي:</div>
+            {choice.name} — {choice.calories} كالوري
+            <br />
+            بروتين {choice.protein}جم • كارب {choice.carbs}جم • دهون{" "}
+            {choice.fat}جم
+          </div>
+        )}
+      </section>
+    );
+  }
+
+/* ============================================
+   ============= صفحة Premium =================
+   ============================================ */
+export default function PremiumHome({ userName, basePlan }) {
+  const weeklyPlan = buildWeeklyPlanPro(basePlan);
+
+  const totalCals = basePlan?.calories || 0;
+  const protein = basePlan?.protein || 0;
+  const carbs = basePlan?.carbs || 0;
+  const fat = basePlan?.fat || 0;
+
+  return (
+    <div className="min-h-screen bg-[#020617] text-gray-100" dir="rtl">
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+
+        {/* =================== HERO =================== */}
+        <header className="rounded-3xl bg-gradient-to-l from-yellow-500/20 via-yellow-500/10 to-transparent border border-yellow-500/40 p-6 lg:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 shadow-xl shadow-yellow-500/10">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <Crown className="w-10 h-10 text-yellow-400" />
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-yellow-300">
+                  FITLIFE ELITE
+                </p>
+                <h1 className="text-3xl lg:text-4xl font-extrabold text-white">
+                  أهلاً {userName} — اشتراك Premium مفعل
+                </h1>
+              </div>
+            </div>
+            <p className="text-sm text-gray-200 max-w-xl">
+              لوحة تحكم نخبوية مخصصة لك — تغذية، تمارين، تتبع صحة، وميزات حصرية 
+              مصممة لمشتركي Premium فقط.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {weeklyPlan.map((day) => (
-              <div
-                key={day.day}
-                className="border-2 border-yellow-500 rounded-2xl p-4 shadow-sm bg-white flex flex-col gap-2"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-bold text-gray-900">{day.day}</h3>
-                  <span className="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100">
-                    {day.focus}
-                  </span>
+          {/* الإحصائيات */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+              <div className="text-[10px] text-gray-400 mb-1">السعرات</div>
+              <div className="text-lg font-bold text-yellow-300">
+                {totalCals ? `${totalCals} kcal` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+              <div className="text-[10px] text-gray-400 mb-1">
+                البروتين / الكارب / الدهون
+              </div>
+              <div className="text-xs font-semibold text-gray-100">
+                P: {protein || "-"}g • C: {carbs || "-"}g • F: {fat || "-"}g
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+              <div className="text-[10px] text-gray-400 mb-1">أدوات Premium</div>
+              <div className="text-xs text-gray-100">
+                Meal Swap • Daily Meals • Wellness • Gifts
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-black/40 border border-yellow-500/40 px-4 py-3">
+              <div className="text-[10px] text-gray-400 mb-1">الوصول السريع</div>
+              <div className="text-xs text-yellow-200">
+                استخدم الروابط أدناه للتنقل بين أدوات Premium
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* الشبكة الرئيسية */}
+        <main className="space-y-8">
+
+          {/* =================== الصف العلوي =================== */}
+          <section className="grid lg:grid-cols-3 gap-6">
+
+            {/* ملخص اليوم */}
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-3">
+                <Sparkles className="w-5 h-5 text-yellow-400" />
+                <h2 className="text-lg font-bold text-white">
+                  ملخص التغذية (اليوم)
+                </h2>
+              </div>
+
+              {totalCals ? (
+                <>
+                  <p className="text-xs text-gray-300 mb-3">
+                    هذه القيم من خطتك الأساسية — سيتم استخدامها في جميع أدوات Premium.
+                  </p>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span>السعرات المستهدفة</span>
+                      <span className="font-semibold text-yellow-300">
+                        {totalCals} kcal
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>البروتين</span>
+                      <span>{protein} جم / اليوم</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>الكارب</span>
+                      <span>{carbs} جم / اليوم</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>الدهون</span>
+                      <span>{fat} جم / اليوم</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-yellow-300">
+                  لا توجد خطة سعرات محفوظة بعد. ارجع للصفحة الرئيسية ثم عد مجددًا.
+                </p>
+              )}
+            </div>
+
+            {/* تتبع الصحة */}
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-3">
+                <Droplets className="w-5 h-5 text-blue-400" />
+                <h2 className="text-lg font-bold text-white">تتبع الصحة اليومية</h2>
+              </div>
+
+              <p className="text-xs text-gray-300 mb-3">
+                تتبع الماء + النوم + الخطوات.
+              </p>
+
+              <div className="space-y-2 text-xs mb-4">
+                <div className="flex items-center gap-2 text-gray-200">
+                  <Droplets className="w-4 h-4 text-blue-400" />
+                  <span>شرب الماء</span>
                 </div>
 
-                <p className="text-sm text-gray-700">
-                  إجمالي السعرات:{" "}
-                  <b>
-                    {day.calories ? `${day.calories} كالوري` : "—"}
-                  </b>
-                </p>
+                <div className="flex items-center gap-2 text-gray-200">
+                  <MoonStar className="w-4 h-4 text-purple-400" />
+                  <span>ساعات النوم</span>
+                </div>
 
-                <div className="mt-2 space-y-1">
-                  {day.meals.map((m) => (
+                <div className="flex items-center gap-2 text-gray-200">
+                  <Footprints className="w-4 h-4 text-emerald-400" />
+                  <span>عدد الخطوات</span>
+                </div>
+              </div>
+
+              <a
+                href="/premium/wellness"
+                className="inline-flex items-center justify-center w-full px-4 py-2.5 rounded-xl bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition"
+              >
+                فتح صفحة تتبع الصحة
+              </a>
+            </div>
+
+            {/* روابط سريعة */}
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-bold text-white">أدوات Premium السريعة</h2>
+              </div>
+
+              <div className="flex flex-col gap-2 text-xs">
+                <a
+                  href="/premium/meals"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
+                >
+                  <span>مولّد الوجبات اليومي</span>
+                  <span className="text-yellow-300 text-[11px]">جديد 🔥</span>
+                </a>
+
+                <a
+                  href="/premium/wellness"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
+                >
+                  <span>تتبع الصحة</span>
+                  <span className="text-gray-300 text-[11px]">ماء • نوم • خطوات</span>
+                </a>
+                <a
+  href="/premium/training"
+  className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
+>
+  <span>برنامج التدريب الأسبوعي</span>
+  <span className="text-emerald-300 text-[11px]">جديد 💪</span>
+</a>
+<a
+  href="/premium/analyzer"
+  className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
+>
+  <span>محلل الوجبات الذكي</span>
+  <span className="text-yellow-300 text-[11px]">تقدير سعرات ومغذيات</span>
+</a>
+                <a
+                  href="/premium/gifts"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
+                >
+                  <span>هدايا Premium الأسبوعية</span>
+                  <span className="text-yellow-300 text-[11px]">حزم وتحديات</span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          {/* =================== الخطة الأسبوعية + البدائل =================== */}
+          <section className="grid lg:grid-cols-3 gap-6">
+
+            {/* الخطة الأسبوعية */}
+            <div className="lg:col-span-2 bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-4">
+                <Sparkles className="w-6 h-6 text-yellow-400" />
+                <div>
+                  <h2 className="text-xl font-bold text-white">
+                    الخطة الأسبوعية حسب وزنك
+                  </h2>
+                  <p className="text-xs text-gray-300">
+                    توزيع السعرات + مثال وجبات لكل يوم
+                  </p>
+                </div>
+              </div>
+
+              {!basePlan?.calories ? (
+                <div className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-4 text-xs text-yellow-100">
+                  لا توجد خطة غذائية محسوبة بعد. ارجع للصفحة الرئيسية.
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                  {weeklyPlan.map((day, i) => (
                     <div
-                      key={m.type}
-                      className="text-xs bg-gray-50 rounded-lg px-2 py-1.5"
+                      key={i}
+                      className="border border-yellow-500/40 rounded-2xl p-3 bg-black/50 flex flex-col gap-2"
                     >
-                      <b>{m.type}</b> — {m.kcals} كالوري
-                      <div className="text-[11px] text-gray-600">
-                        {m.note}
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-bold text-gray-50 text-sm">{day.day}</h3>
+
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-300 border border-yellow-500/40">
+                          {day.focus}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-200">
+                        السعرات:{" "}
+                        <span className="font-semibold text-yellow-300">
+                          {day.calories} كالوري
+                        </span>
+                      </p>
+
+                      <p className="text-[11px] text-gray-400">
+                        بروتين: {day.meals[0].protein} جم • كارب: {day.meals[0].carbs} جم • دهون: {day.meals[0].fat} جم
+                      </p>
+
+                      <div className="mt-1 space-y-1.5">
+                        {day.meals.map((m) => (
+                          <div
+                            key={m.type}
+                            className="text-[11px] bg-[#020617] rounded-lg px-2 py-1 border border-gray-800"
+                          >
+                            <div className="font-semibold text-gray-100">
+                              {m.type} — {m.kcals} كالوري
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* بدائل الوجبات */}
+            <MealSwapPro basePlan={basePlan} />
+          </section>
+
+          {/* =================== خطة تدريب + مشتريات + دعم + هدايا =================== */}
+          <section className="grid lg:grid-cols-3 gap-6">
+
+            {/* خطة تدريب */}
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-3">
+                <Dumbbell className="w-6 h-6 text-emerald-400" />
+                <h2 className="text-xl font-bold text-white">خطة تدريب Premium</h2>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* 2 — بدائل الوجبات */}
-        <SmartMealSwap basePlan={basePlan} />
+              <p className="text-xs text-gray-300 mb-3">
+                مثال جدول أسبوعي يمكن تحسينه لاحقًا ليصبح تلقائي حسب هدفك.
+              </p>
 
-        {/* 3 — خطة تدريب Premium */}
-        <PremiumTrainingPlan />
+              <ul className="space-y-1.5 text-xs text-gray-200">
+                <li>السبت — قوة الجزء السفلي + كارديو خفيف</li>
+                <li>الأحد — قوة الجزء العلوي + مشي سريع</li>
+                <li>الاثنين — كارديو متوسط</li>
+                <li>الثلاثاء — HIIT خفيف + كور</li>
+                <li>الأربعاء — قوة شاملة Full Body</li>
+                <li>الخميس — كارديو خفيف + استطالة</li>
+                <li>الجمعة — راحة نشطة</li>
+              </ul>
+            </div>
 
-        {/* 4 — قائمة مشتريات أسبوعية */}
-        <GroceryList basePlan={basePlan} />
-        
-                {/* هدايا Premium الأسبوعية */}
-                <section className="border-2 border-yellow-500 rounded-2xl p-5 bg-white shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            هدايا Premium الأسبوعية
-          </h2>
-          <p className="text-sm text-gray-600 mb-3">
-            حزم جاهزة من تمارين ووصفات وتحديات يتم تحديثها أسبوعيًا لمشتركي
-            Premium فقط.
-          </p>
-          <a
-            href="/premium/gifts"
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-yellow-600 text-white text-sm hover:bg-yellow-700"
-          >
-            عرض حزم هذا الأسبوع
-          </a>
-        </section>
-        
-      </main>
+            {/* مشتريات */}
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+              <div className="flex items-center gap-3 mb-3">
+                <ListChecks className="w-6 h-6 text-sky-400" />
+                <h2 className="text-xl font-bold text-white">قائمة مشتريات أسبوعية</h2>
+              </div>
+
+              <ul className="text-xs text-gray-200 space-y-1">
+                <li className="font-semibold text-yellow-200">بروتينات:</li>
+                <li>دجاج، لحم، سمك، تونة، بيض، زبادي يوناني</li>
+
+                <li className="font-semibold text-yellow-200 mt-2">كاربوهيدرات:</li>
+                <li>رز، بطاط، شوفان، خبز بر، مكرونة كاملة</li>
+
+                <li className="font-semibold text-yellow-200 mt-2">دهون صحية:</li>
+                <li>أفوكادو، مكسرات، زيت زيتون</li>
+
+                <li className="font-semibold text-yellow-200 mt-2">خضار:</li>
+                <li>خيار، خس، بروكلي، سبانخ</li>
+
+                <li className="font-semibold text-yellow-200 mt-2">فواكه:</li>
+                <li>موز، تفاح، توت، برتقال</li>
+              </ul>
+            </div>
+
+            {/* دعم + هدايا */}
+            <div className="space-y-4">
+
+              {/* دعم */}
+              <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <MessageCircle className="w-6 h-6 text-emerald-300" />
+                  <h2 className="text-lg font-bold text-white">دعم Premium خاص</h2>
+                </div>
+
+                <p className="text-xs text-gray-300 mb-2">
+                  لك أولوية في الرد في الشات. فقط اكتب:  
+                  <span className="text-yellow-300">"أنا مشترك Premium"</span>
+                </p>
+              </div>
+
+              {/* هدايا */}
+              <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+                <h2 className="text-lg font-bold text-white mb-2">
+                  هدايا Premium الأسبوعية
+                </h2>
+
+                <p className="text-xs text-gray-300 mb-3">
+                  حزم جاهزة من وصفات، تمارين، وتحديات — تتحدث أسبوعيًا.
+                </p>
+
+                <a
+                  href="/premium/gifts"
+                  className="inline-flex items-center justify-center w-full px-4 py-2.5 rounded-xl bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition"
+                >
+                  عرض حزم هذا الأسبوع
+                </a>
+              </div>
+
+            </div>
+
+          </section>
+
+        </main>
+      </div>
     </div>
   );
 }
