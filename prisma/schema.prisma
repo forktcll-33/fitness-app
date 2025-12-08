@@ -7,10 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* === جديد: نوع الخصم للإعلانات والطلبات === */
+/**
+ * === جديد: نوع الخصم للإعلانات والطلبات ===
+ */
 enum DiscountType {
-  PERCENT   // نسبة مئوية
-  FLAT      // مبلغ ثابت (هللات)
+  PERCENT // نسبة مئوية
+  FLAT // مبلغ ثابت (هللات)
 }
 
 enum SubscriptionTier {
@@ -27,10 +29,13 @@ model User {
   isSubscribed Boolean @default(false)
   role         String  @default("user")
 
-  subscriptionTier SubscriptionTier @default(basic)
+  subscriptionTier  SubscriptionTier @default(basic)
+  subscriptionStart DateTime?
+  subscriptionEnd   DateTime?
+
   // علاقات
-  orders       Order[]
-  resetTokens  PasswordResetToken[]
+  orders      Order[]
+  resetTokens PasswordResetToken[]
 
   // الحقول الجديدة
   weight        Int?
@@ -43,14 +48,14 @@ model User {
   targetWeight  Float?
   startDate     DateTime?
 
-  weightLogs    WeightLog[]
+  weightLogs WeightLog[]
 
   // الخطة المحسوبة
   plan Json?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-    wellness   Wellness[]     // ← علاقة المستخدم مع سجلات الرفاهية
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  wellness  Wellness[] // ← علاقة المستخدم مع سجلات الرفاهية
 }
 
 model Announcement {
@@ -65,7 +70,7 @@ model Announcement {
 
   // خصم (اختياري)
   discountType  DiscountType?
-  discountValue Int? @default(0)  // لو PERCENT = نسبة%، لو FLAT = هللات
+  discountValue Int?          @default(0) // لو PERCENT = نسبة%، لو FLAT = هللات
 }
 
 model PasswordResetToken {
@@ -79,47 +84,48 @@ model PasswordResetToken {
 }
 
 model Order {
-  id           Int           @id @default(autoincrement())
-  invoiceId    String        @unique            // رقم/معرّف الفاتورة من ميسر
-  userId       Int?
-  user         User?         @relation(fields: [userId], references: [id])
+  id        Int    @id @default(autoincrement())
+  invoiceId String @unique // رقم/معرّف الفاتورة من ميسر
+  userId    Int?
+  user      User?  @relation(fields: [userId], references: [id])
 
-  amount       Int                               // قبل الخصم (هللات)
-  finalAmount  Int?                              // بعد الخصم (هللات)
-  currency     String        @default("SAR")
-  status       String        @default("pending") // pending | paid | failed | refunded
-  gateway      String        @default("moyasar")
+  amount      Int // قبل الخصم (هللات)
+  finalAmount Int? // بعد الخصم (هللات)
+  currency    String @default("SAR")
+  status      String @default("pending") // pending | paid | failed | refunded
+  gateway     String @default("moyasar")
 
   // أثر الخصم وقت الطلب (اختياري)
   discountType  DiscountType?
-  discountValue Int? @default(0)
+  discountValue Int?          @default(0)
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-model WeightLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  date      DateTime @default(now())
-  weight    Float
 
-  user      User     @relation(fields: [userId], references: [id])
+model WeightLog {
+  id     Int      @id @default(autoincrement())
+  userId Int
+  date   DateTime @default(now())
+  weight Float
+
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, date])
 }
 
 model Wellness {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
 
-  date      DateTime @default(now())  // تاريخ اليوم
-  water     Int      @default(0)      // عدد أكواب الماء
-  sleep     Int      @default(0)      // ساعات النوم
-  steps     Int      @default(0)      // عدد الخطوات
+  date  DateTime @default(now()) // تاريخ اليوم
+  water Int      @default(0) // عدد أكواب الماء
+  sleep Int      @default(0) // ساعات النوم
+  steps Int      @default(0) // عدد الخطوات
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, date])   // سطر مهم: يمنع تكرار سجل لنفس اليوم
+  @@unique([userId, date]) // سطر مهم: يمنع تكرار سجل لنفس اليوم
 }

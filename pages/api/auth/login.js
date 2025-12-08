@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     );
 
     // ============================================
-    //  🔥 الحل: إزالة الكوكي القديمة + وضع الجديدة
+    // 🔥 إزالة الكوكي القديمة + وضع الجديدة
     // ============================================
     res.setHeader("Set-Cookie", [
       // حذف أي كوكي قديم
@@ -58,8 +58,8 @@ export default async function handler(req, res) {
     ]);
 
     // ============================================
-
-    // ✅ تحديد الوجهة
+    // ✅ فحص نقص البيانات
+    // ============================================
     const missingData =
       !user.weight ||
       !user.height ||
@@ -68,13 +68,42 @@ export default async function handler(req, res) {
       !user.activityLevel ||
       !user.goal;
 
+    // ============================================
+    // ✅ فحص انتهاء الاشتراك (جديد)
+    // ============================================
+    const now = new Date();
+    const isExpired =
+      user.subscriptionEnd &&
+      new Date(user.subscriptionEnd).getTime() < now.getTime();
+
     let redirect = "/dashboard";
 
-    if ((user.role || "").toUpperCase() === "ADMIN") {
+    // 1) لو مدير
+    if ((user.role || "").toLowerCase() === "admin") {
       redirect = "/admin";
-    } else if (missingData) {
+    }
+    // 2) لو ناقص بيانات
+    else if (missingData) {
       redirect = "/onboarding";
     }
+    // 3) لو اشتراكه منتهي → روح لتجديد الاشتراك
+    else if (isExpired) {
+      redirect = "/renew";
+    }
+    // 4) لو اشتراكه شغال → حسب التير
+    else {
+      const tier = (user.subscriptionTier || "").toLowerCase();
+
+      if (tier === "premium") {
+        redirect = "/premium";
+      } else if (tier === "pro") {
+        redirect = "/pro";
+      } else {
+        redirect = "/dashboard"; // basic
+      }
+    }
+
+    // ============================================
 
     return res.status(200).json({
       ok: true,

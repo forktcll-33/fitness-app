@@ -53,6 +53,15 @@ export async function getServerSideProps({ req }) {
       return { redirect: { destination: "/login", permanent: false } };
     }
 
+
+// 🔒 منع دخول أي مستخدم اشتراكه غير فعّال
+if (!user.isSubscribed && user.startDate) {
+  // اشتراك منتهي
+  return {
+    redirect: { destination: "/renew", permanent: false },
+  };
+}
+
     return { props: { user } };
   } catch (err) {
     return { redirect: { destination: "/login", permanent: false } };

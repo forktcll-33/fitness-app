@@ -504,12 +504,12 @@ export default function PremiumHome({ userName, basePlan }) {
 
 {/* زر تسجيل الخروج */}
 <div className="flex justify-end mt-2">
-  <a
-    href="/logout"
-    className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-xl bg-red-600/80 border border-red-600 text-white hover:bg-red-500 transition font-semibold"
-  >
-    تسجيل الخروج
-  </a>
+<a
+  href="/logout"
+  className="px-4 py-2 rounded-xl bg-yellow-500 text-black font-semibold text-sm hover:bg-yellow-400 transition shadow-lg shadow-yellow-500/20"
+>
+  تسجيل الخروج
+</a>
 </div>
 
 </header>

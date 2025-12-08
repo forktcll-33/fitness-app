@@ -94,7 +94,9 @@ export default async function handler(req, res) {
     const metaUserId =
       inv?.metadata?.user_id || inv?.metadata?.userId || null;
 
-    // ✔️ قراءة بيانات الترقية / التير
+    // ---------------------------------------------------
+    // قراءة معلومات "الترقية" + "الباقة الجديدة"
+    // ---------------------------------------------------
     const newTierRaw =
       inv?.metadata?.new_tier ||
       inv?.metadata?.subscription_tier ||
@@ -105,6 +107,15 @@ export default async function handler(req, res) {
       inv?.metadata?.upgrade === true ||
       inv?.metadata?.upgrade === "true" ||
       inv?.metadata?.mode === "upgrade";
+
+    // 🔥 جديد → وضع التجديد Renewal
+    const renewFlag =
+      inv?.metadata?.mode === "renew" ||
+      inv?.metadata?.renew === "true";
+
+    // لو كان في metadata old_tier
+    const oldTierMeta =
+      inv?.metadata?.old_tier?.toString().toLowerCase() || null;
 
     const newTier = newTierRaw
       ? newTierRaw.toString().toLowerCase().trim()
@@ -117,6 +128,8 @@ export default async function handler(req, res) {
     console.log(
       "CALLBACK → upgrade?",
       upgradeFlag,
+      "| renew?",
+      renewFlag,
       "→ tier:",
       normalizedTier
     );
@@ -138,7 +151,7 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn("Order update by invoiceId failed, trying find:", e);
 
-      // لو ما لقينا بـ invoiceId، نحاول نلقط آخر طلب pending لنفس المستخدم (خاصة في الترقية)
+      // لو ما لقينا بـ invoiceId
       try {
         if (metaUserId) {
           order = await prisma.order.findFirst({
@@ -153,7 +166,7 @@ export default async function handler(req, res) {
             order = await prisma.order.update({
               where: { id: order.id },
               data: {
-                invoiceId, // نربط الفاتورة الصحيحة
+                invoiceId,
                 status: isPaid ? "paid" : inv?.status || "unknown",
                 finalAmount: amountCents ?? undefined,
                 currency: currency ?? undefined,
@@ -166,7 +179,6 @@ export default async function handler(req, res) {
       }
 
       if (!order) {
-        // في أسوأ الأحوال ننشئ order جديد
         order = await prisma.order.create({
           data: {
             invoiceId,
@@ -197,41 +209,98 @@ export default async function handler(req, res) {
     }
 
     // ===============================
-    // 3) تحديث اشتراك المستخدم
+    // 3) تحديث اشتراك المستخدم (اشتراك جديد + ترقية + تجديد)
     // ===============================
     if (isPaid && targetUserId) {
-      await prisma.user.update({
+      console.log("🔥 CALLBACK: Subscription update logic running…");
+
+      // نجيب بيانات المستخدم الحالية
+      const existingUser = await prisma.user.findUnique({
         where: { id: Number(targetUserId) },
-        data: {
-          isSubscribed: true,
-          subscriptionTier: normalizedTier,
-        },
       });
 
+      const now = new Date();
+
+      // آخر تاريخ للبدء والإنتهاء
+      const activeStart =
+        existingUser?.subscriptionStart &&
+        existingUser?.subscriptionEnd &&
+        existingUser.subscriptionEnd > now
+          ? existingUser.subscriptionStart
+          : now;
+
+      const baseEnd =
+        existingUser?.subscriptionEnd &&
+        existingUser.subscriptionEnd > now
+          ? existingUser.subscriptionEnd
+          : now;
+
+      const newEndDate = new Date(baseEnd);
+      newEndDate.setDate(newEndDate.getDate() + 90); // +90 يوم
+
+      // ----------- تجديد -----------
+      if (renewFlag) {
+        console.log("🔥 RENEW MODE — تمديد نفس الباقة");
+
+        await prisma.user.update({
+          where: { id: Number(targetUserId) },
+          data: {
+            isSubscribed: true,
+            subscriptionTier: oldTierMeta || existingUser.subscriptionTier,
+            subscriptionStart: activeStart,
+            subscriptionEnd: newEndDate,
+          },
+        });
+      }
+
+      // ----------- ترقية -----------
+      else if (upgradeFlag) {
+        console.log("🔥 UPGRADE MODE — ترقية الباقة");
+
+        await prisma.user.update({
+          where: { id: Number(targetUserId) },
+          data: {
+            isSubscribed: true,
+            subscriptionTier: normalizedTier, // الباقة الجديدة
+            subscriptionStart: now,
+            subscriptionEnd: newEndDate,
+          },
+        });
+      }
+
+      // ----------- اشتراك جديد -----------
+      else {
+        console.log("🔥 NEW SUBSCRIPTION MODE");
+
+        await prisma.user.update({
+          where: { id: Number(targetUserId) },
+          data: {
+            isSubscribed: true,
+            subscriptionTier: normalizedTier,
+            subscriptionStart: now,
+            subscriptionEnd: newEndDate,
+          },
+        });
+      }
+
       console.log(
-        "CALLBACK → USER UPDATED",
+        "CALLBACK → USER SUB UPDATED:",
         targetUserId,
         "PAID:",
         isPaid,
         "TIER:",
         normalizedTier,
-        "INVOICE:",
-        invoiceId
-      );
-    } else if (isPaid && !targetUserId) {
-      console.warn(
-        "CALLBACK → PAID BUT NO USER FOUND FOR INVOICE",
-        invoiceId,
-        "META user_id:",
-        metaUserId,
-        "EMAIL:",
-        metaEmail
+        "START:",
+        activeStart,
+        "END:",
+        newEndDate
       );
     }
 
     return res
       .status(200)
       .json({ ok: true, paid: isPaid, tier: normalizedTier });
+
   } catch (e) {
     console.error("callback fatal:", e);
     return res.status(200).json({ ok: false, error: "server error" });
