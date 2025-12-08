@@ -46,6 +46,8 @@ export async function getServerSideProps({ req }) {
         goal: true,
         plan: true,
         subscriptionTier: true, // 👈 مهم: نوع الاشتراك من القاعدة
+        subscriptionStart: true,     // 👈 أضف هذا
+        subscriptionEnd: true,       // 👈 وهذا
       },
     });
 
@@ -54,13 +56,37 @@ export async function getServerSideProps({ req }) {
     }
 
 
-// 🔒 منع دخول أي مستخدم اشتراكه غير فعّال
-if (!user.isSubscribed && user.startDate) {
-  // اشتراك منتهي
-  return {
-    redirect: { destination: "/renew", permanent: false },
-  };
-}
+    if (!user) {
+      return { redirect: { destination: "/login", permanent: false } };
+    }
+
+    // 🔒 من هنا نمنع أي أحد ما عنده اشتراك فعّال
+    const now = new Date();
+
+    const hasDates = user.subscriptionStart && user.subscriptionEnd;
+
+    const isExpired =
+      hasDates && user.subscriptionEnd < now;
+
+    const hasActiveSub =
+      hasDates &&
+      user.isSubscribed &&
+      user.subscriptionStart <= now &&
+      user.subscriptionEnd >= now;
+
+    if (!hasActiveSub) {
+      // كان عنده اشتراك وانتهى
+      if (isExpired) {
+        return {
+          redirect: { destination: "/renew", permanent: false },
+        };
+      }
+
+      // ما قد اشترك أصلاً → يروح يختار باقة
+      return {
+        redirect: { destination: "/subscriptions", permanent: false },
+      };
+    }
 
     return { props: { user } };
   } catch (err) {
