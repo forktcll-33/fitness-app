@@ -22,29 +22,38 @@ export default function PaySuccess() {
       (typeof window !== "undefined" && localStorage.getItem("pay_inv")) ||
       q.id;
 
+    // لو جاينا placeholder زي {id} نلغيه
     if (invId && invId === "{id}") {
       invId = null;
     }
 
+    // نخزن رقم الفاتورة لو موجود
     if (invId) {
       try {
         localStorage.setItem("pay_inv", String(invId));
       } catch {}
     }
 
+    // ================================
+    // 🔴 مافي رقم فاتورة → غالبًا رجوع / إلغاء
+    // ================================
     if (!invId) {
-      setMsg("تم الدفع بنجاح! يتم تحويلك الآن…");
-      // 👈 التوجيه بعد الدفع حسب نوع الاشتراك
-if (data.tier === "premium") {
-  router.replace("/premium");
-} else {
-  router.replace("/dashboard?paid=1");
-}
-return;
-      
+      setMsg("تم إلغاء العملية، سيتم إعادتك لصفحة الباقات…");
+
+      // نرجّع المستخدم لصفحة الاشتراكات الحقيقية داخل Onboarding
+      const to = "/onboarding";
+
+      const backTimer = setTimeout(() => {
+        if (canceled) return;
+        router.replace(to);
+      }, 2000);
+
+      // نحفظ المؤقت عشان ننظفه في الـ cleanup
+      timerId = backTimer;
+      return;
     }
 
-    // مهلة قصوى
+    // مهلة قصوى في حال مافي رد من /api/pay/verify
     hardTimeoutId = setTimeout(() => {
       if (canceled) return;
       setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
@@ -86,7 +95,7 @@ return;
 
           if (hardTimeoutId) clearTimeout(hardTimeoutId);
 
-          // 🔥 التوجيه الصحيح إلى صفحة Premium
+          // 🔥 التوجيه الصحيح حسب التير
           if (data?.tier === "premium") {
             router.replace("/premium");
           } else {
@@ -107,12 +116,8 @@ return;
           setMsg("تم الدفع. سيتم تحويلك الآن…");
           if (hardTimeoutId) clearTimeout(hardTimeoutId);
 
-          // 🔥 لو خلصت المحاولات بدون رد
-          if (data?.tier === "premium") {
-            router.replace("/premium");
-          } else {
-            router.replace("/dashboard?paid=1");
-          }
+          // ما قدرنا نتحقق بس ما نقول Premium إلا لو متأكدين
+          router.replace("/dashboard?paid=1");
         }
       }
     };

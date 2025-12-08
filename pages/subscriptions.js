@@ -68,11 +68,10 @@ export default function SubscriptionsPage() {
       <section className="bg-gradient-to-br from-green-700 to-emerald-600 text-white">
         <div className="max-w-7xl mx-auto px-6 py-16 md:py-20 text-center md:text-right">
           <h1 className="text-3xl md:text-4xl font-extrabold mb-4">
-            اختر خطة الاشتراك المناسبة لك
+            خطط الاشتراك
           </h1>
           <p className="text-green-100 text-lg md:text-xl max-w-3xl mx-auto md:mx-0">
-            جميع الخطط مبنية على نفس الخوارزمية الذكية لحساب احتياجك من السعرات والماكروز،
-            مع اختلاف مستوى التحكم والمرونة داخل الداشبورد.
+            صفحة توضيحية لميزات كل خطة — الدفع يتم فقط بعد إدخال بياناتك داخل النظام الحقيقي.
           </p>
         </div>
       </section>
@@ -134,16 +133,10 @@ export default function SubscriptionsPage() {
                   ))}
                 </ul>
 
-                <Link
-                  href={`/register?plan=${plan.id}`}
-                  className={`block text-center w-full py-3 rounded-lg text-sm font-semibold transition ${
-                    plan.highlight
-                      ? "bg-green-600 text-white hover:bg-green-700"
-                      : "bg-gray-900 text-white hover:bg-black"
-                  }`}
-                >
-                  اشترك الآن
-                </Link>
+                {/* ❌ حذف الدفع — فقط زر للمعلومة أو لا شيء */}
+                <div className="text-center text-gray-500 text-xs">
+                  الدفع يتم داخل النظام بعد إدخال بياناتك.
+                </div>
               </article>
             ))}
           </div>
