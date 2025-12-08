@@ -1,77 +1,139 @@
 // pages/subscriptions.js
 import Link from "next/link";
+import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
+// ✅ SSR: لو المستخدم مسجل وعنده اشتراك فعّال → نوديه لصفحته الصح
+export async function getServerSideProps({ req }) {
+  const cookie = req.headers.cookie || "";
+  const token = cookie
+    ?.split(";")
+    .find((c) => c.trim().startsWith("token="))
+    ?.split("=")[1];
+
+  if (!token) {
+    // مو مسجل دخول → يخليه يشوف صفحة الباقات عادي
+    return { props: {} };
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await prisma.user.findUnique({
+      where: { id: Number(payload.id) },
+      select: {
+        id: true,
+        isSubscribed: true,
+        subscriptionTier: true,
+      },
+    });
+
+    if (!user) {
+      return { props: {} };
+    }
+
+    // لو عنده اشتراك فعّال → رجّعه فوراً لصفحته
+    if (user.isSubscribed && user.subscriptionTier) {
+      const tier = (user.subscriptionTier || "").toLowerCase();
+
+      let destination = "/dashboard"; // الافتراضي Basic
+
+      if (tier === "premium") destination = "/premium";
+      else if (tier === "pro") destination = "/pro";
+
+      return {
+        redirect: { destination, permanent: false },
+      };
+    }
+
+    // مسجل دخول لكن بدون اشتراك → يشوف صفحة الباقات عادي
+    return { props: {} };
+  } catch {
+    // لو JWT خربان أو منتهي → يخليه يشوف الصفحة عادي
+    return { props: {} };
+  }
+}
+
+// ===== بيانات الباقات (عرض تعريفي فقط) =====
 const PLANS = [
-    {
-      id: "basic",
-      name: "الباقة الأساسية",
-      price: "10",
-      period: "ريال / شهر",
-      highlight: false,
-      badge: "للمبتدئين",
-      description: "بداية بسيطة وواضحة دون تعقيد. خطة جاهزة تساعدك على الانطلاق بسهولة.",
-      features: [
-        "خطة غذائية محسوبة حسب وزنك وهدفك",
-        "توزيع السعرات والماكروز على الوجبات",
-        "عرض يومي للسعرات والبروتين والكارب والدهون",
-        "خطة تمارين أساسية",
-        "لوحة تحكم لمتابعة الوزن",
-        "لا تسمح بتغيير أو استبدال الأطعمة",
-      ],
-    },
-  
-    {
-      id: "pro",
-      name: "الباقة الاحترافية",
-      price: "29",
-      period: "ريال / شهر",
-      highlight: true,
-      badge: "الأكثر استخدامًا",
-      description: "مرونة كاملة في اختيار الوجبات واستبدال الأطعمة مع الحفاظ على السعرات.",
-      features: [
-        "جميع مميزات الباقة الأساسية",
-        "استبدال الأطعمة داخل الوجبات بسهولة",
-        "ضبط تلقائي للكميات حسب هدفك",
-        "اختيار يدوي لمكونات كل وجبة",
-        "تجربة استخدام سلسة داخل لوحة التحكم",
-        "حساب تلقائي للماكروز لكل اختيار",
-      ],
-    },
-  
-    {
-      id: "premium",
-      name: "الباقة المميزة",
-      price: "49",
-      period: "ريال / شهر",
-      highlight: false,
-      badge: "الأقوى والأكثر شمولًا",
-      description: "النظام الكامل: خطط أسبوعية + أدوات ذكية + تتبع صحي + وجبات يومية محسوبة.",
-      features: [
-        "جميع مميزات الباقة الاحترافية",
-        "الخطة الأسبوعية الاحترافية حسب وزنك وهدفك",
-        "بدائل وجبات احترافية ببيانات دقيقة",
-        "مولّد الوجبات اليومي",
-        "تتبع الماء + النوم + الخطوات",
-        "قائمة مشتريات أسبوعية جاهزة",
-        "خطة تدريب شاملة",
-        "حزم وهدايا أسبوعية مخصصة",
-        "دعم VIP وأولوية في الاستجابة",
-      ],
-    },
-  ];
+  {
+    id: "basic",
+    name: "الباقة الأساسية",
+    price: "10",
+    period: "ريال / شهر",
+    highlight: false,
+    badge: "للمبتدئين",
+    description:
+      "بداية بسيطة وواضحة دون تعقيد. خطة جاهزة تساعدك على الانطلاق بسهولة.",
+    features: [
+      "خطة غذائية محسوبة حسب وزنك وهدفك",
+      "توزيع السعرات والماكروز على الوجبات",
+      "عرض يومي للسعرات والبروتين والكارب والدهون",
+      "خطة تمارين أساسية",
+      "لوحة تحكم لمتابعة الوزن",
+      "لا تسمح بتغيير أو استبدال الأطعمة",
+    ],
+  },
+
+  {
+    id: "pro",
+    name: "الباقة الاحترافية",
+    price: "29",
+    period: "ريال / شهر",
+    highlight: true,
+    badge: "الأكثر استخدامًا",
+    description:
+      "مرونة كاملة في اختيار الوجبات واستبدال الأطعمة مع الحفاظ على السعرات.",
+    features: [
+      "جميع مميزات الباقة الأساسية",
+      "استبدال الأطعمة داخل الوجبات بسهولة",
+      "ضبط تلقائي للكميات حسب هدفك",
+      "اختيار يدوي لمكونات كل وجبة",
+      "تجربة استخدام سلسة داخل لوحة التحكم",
+      "حساب تلقائي للماكروز لكل اختيار",
+    ],
+  },
+
+  {
+    id: "premium",
+    name: "الباقة المميزة",
+    price: "49",
+    period: "ريال / شهر",
+    highlight: false,
+    badge: "الأقوى والأكثر شمولًا",
+    description:
+      "النظام الكامل: خطط أسبوعية + أدوات ذكية + تتبع صحي + وجبات يومية محسوبة.",
+    features: [
+      "جميع مميزات الباقة الاحترافية",
+      "الخطة الأسبوعية الاحترافية حسب وزنك وهدفك",
+      "بدائل وجبات احترافية ببيانات دقيقة",
+      "مولّد الوجبات اليومي",
+      "تتبع الماء + النوم + الخطوات",
+      "قائمة مشتريات أسبوعية جاهزة",
+      "خطة تدريب شاملة",
+      "حزم وهدايا أسبوعية مخصصة",
+      "دعم VIP وأولوية في الاستجابة",
+    ],
+  },
+];
 
 export default function SubscriptionsPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 flex flex-col">
-
       {/* Hero */}
       <section className="bg-gradient-to-br from-green-700 to-emerald-600 text-white">
         <div className="max-w-7xl mx-auto px-6 py-16 md:py-20 text-center md:text-right">
           <h1 className="text-3xl md:text-4xl font-extrabold mb-4">
-            خطط الاشتراك
+            اختر خطة الاشتراك المناسبة لك
           </h1>
           <p className="text-green-100 text-lg md:text-xl max-w-3xl mx-auto md:mx-0">
-            صفحة توضيحية لميزات كل خطة — الدفع يتم فقط بعد إدخال بياناتك داخل النظام الحقيقي.
+            جميع الخطط مبنية على نفس الخوارزمية الذكية لحساب احتياجك من
+            السعرات والماكروز، مع اختلاف مستوى التحكم والمرونة داخل
+            الداشبورد.
+          </p>
+          <p className="mt-3 text-sm text-green-100">
+            مدة كل اشتراك: <span className="font-bold">٣ أشهر كاملة</span> من
+            تاريخ التفعيل.
           </p>
         </div>
       </section>
@@ -122,6 +184,9 @@ export default function SubscriptionsPage() {
                       {plan.period}
                     </span>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    * الاشتراك لمدة ٣ أشهر متتالية.
+                  </p>
                 </div>
 
                 <ul className="space-y-2 text-sm text-gray-700 mb-6 flex-1">
@@ -133,10 +198,17 @@ export default function SubscriptionsPage() {
                   ))}
                 </ul>
 
-                {/* ❌ حذف الدفع — فقط زر للمعلومة أو لا شيء */}
-                <div className="text-center text-gray-500 text-xs">
-                  الدفع يتم داخل النظام بعد إدخال بياناتك.
-                </div>
+                {/* زر توجيه للتسجيل فقط (ما فيه دفع مباشر هنا) */}
+                <Link
+                  href={`/register?plan=${plan.id}`}
+                  className={`block text-center w-full py-3 rounded-lg text-sm font-semibold transition ${
+                    plan.highlight
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-900 text-white hover:bg-black"
+                  }`}
+                >
+                  ابدأ بهذه الباقة
+                </Link>
               </article>
             ))}
           </div>
@@ -159,12 +231,14 @@ export default function SubscriptionsPage() {
             الشروط والأحكام
           </Link>
           <span>•</span>
-          <Link href="/refund-policy" className="text-green-700 hover:underline">
+          <Link
+            href="/refund-policy"
+            className="text-green-700 hover:underline"
+          >
             سياسة الاسترجاع
           </Link>
         </div>
       </footer>
-
     </div>
   );
 }
