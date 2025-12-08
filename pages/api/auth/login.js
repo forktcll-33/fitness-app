@@ -76,32 +76,34 @@ export default async function handler(req, res) {
       user.subscriptionEnd &&
       new Date(user.subscriptionEnd).getTime() < now.getTime();
 
-    let redirect = "/dashboard";
+    // ============================================
+// 📌 نظام التوجيه الصحيح عند تسجيل الدخول
+// ============================================
 
-    // 1) لو مدير
-    if ((user.role || "").toLowerCase() === "admin") {
-      redirect = "/admin";
-    }
-    // 2) لو ناقص بيانات
-    else if (missingData) {
-      redirect = "/onboarding";
-    }
-    // 3) لو اشتراكه منتهي → روح لتجديد الاشتراك
-    else if (isExpired) {
-      redirect = "/renew";
-    }
-    // 4) لو اشتراكه شغال → حسب التير
-    else {
-      const tier = (user.subscriptionTier || "").toLowerCase();
+let redirect = "/dashboard";
 
-      if (tier === "premium") {
-        redirect = "/premium";
-      } else if (tier === "pro") {
-        redirect = "/pro";
-      } else {
-        redirect = "/dashboard"; // basic
-      }
-    }
+// 1) لو مدير
+if ((user.role || "").toLowerCase() === "admin") {
+  redirect = "/admin";
+}
+// 2) لو ناقص بيانات
+else if (missingData) {
+  redirect = "/onboarding";
+}
+// 3) لو اشتراكه منتهي
+else if (isExpired) {
+  redirect = "/renew";
+}
+// 4) لو اشتراكه شغال → نحدد حسب التير
+else {
+  const tier = (user.subscriptionTier || "").toLowerCase();
+
+  if (tier === "premium") {
+    redirect = "/premium";     // ممتاز
+  } else {
+    redirect = "/dashboard";   // Basic و Pro هنا
+  }
+}
 
     // ============================================
 
