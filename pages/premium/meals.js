@@ -125,7 +125,7 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ mealCount }),
+        body: JSON.stringify({ mealsCount: mealCount }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -153,7 +153,7 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ mealCount }),
+        body: JSON.stringify({ mealsCount: mealCount }),
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.meals)) {

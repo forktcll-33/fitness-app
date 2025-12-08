@@ -1,194 +1,148 @@
 // pages/api/premium/generate-meals.js
+
 import prisma from "../../../lib/prisma";
 import { getUserFromRequest } from "../../../middleware/auth";
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"];
+// ======================================================
+// 1) مكتبة الأغذية الاحترافية
+// ======================================================
+const FOODS = {
+  protein: [
+    { name: "صدر دجاج مشوي", p: 31, c: 0, f: 3.6, kcal: 165 },
+    { name: "لحم قليل الدهن", p: 26, c: 0, f: 10, kcal: 217 },
+    { name: "تونة في الماء", p: 29, c: 0, f: 1, kcal: 130 },
+    { name: "سلمون", p: 25, c: 0, f: 14, kcal: 206 },
+    { name: "بيض كامل", p: 13, c: 1, f: 11, kcal: 155 },
+    { name: "بياض البيض", p: 11, c: 0.7, f: 0, kcal: 48 },
+    { name: "جبن قريش", p: 11, c: 3, f: 4, kcal: 98 },
+    { name: "زبادي يوناني لايت", p: 10, c: 4, f: 0, kcal: 59 },
+    { name: "بروتين واي", p: 24, c: 3, f: 1, kcal: 120 },
+    { name: "لحم بقري ف", p: 28, c: 0, f: 6, kcal: 180 },
+  ],
 
-const ARABIC_LABEL = {
-  breakfast: "فطور",
-  lunch: "غداء",
-  dinner: "عشاء",
-  snack: "سناك",
+  carbs: [
+    { name: "رز أبيض مطبوخ", p: 2.7, c: 28, f: 0.3, kcal: 130 },
+    { name: "رز بني", p: 2.6, c: 23, f: 0.9, kcal: 111 },
+    { name: "مكرونة قمح كامل", p: 4, c: 25, f: 0.5, kcal: 130 },
+    { name: "بطاطا مسلوقة", p: 2, c: 17, f: 0, kcal: 87 },
+    { name: "بطاطا مشوية", p: 2, c: 21, f: 0.2, kcal: 96 },
+    { name: "شوفان", p: 13, c: 68, f: 7, kcal: 389 },
+    { name: "توست بر", p: 13, c: 41, f: 4.2, kcal: 247 },
+    { name: "خبز عربي", p: 9, c: 56, f: 1.2, kcal: 270 },
+    { name: "ذرة", p: 3.4, c: 19, f: 1.5, kcal: 86 },
+    { name: "فواكه", p: 1, c: 15, f: 0.3, kcal: 70 },
+  ],
+
+  fats: [
+    { name: "زيت زيتون", p: 0, c: 0, f: 100, kcal: 884 },
+    { name: "مكسرات", p: 20, c: 20, f: 50, kcal: 607 },
+    { name: "زبدة فول سوداني", p: 25, c: 20, f: 50, kcal: 588 },
+    { name: "أفوكادو", p: 2, c: 9, f: 15, kcal: 160 },
+    { name: "لوز", p: 21, c: 22, f: 50, kcal: 580 },
+    { name: "جوز", p: 15, c: 14, f: 65, kcal: 654 },
+    { name: "فستق", p: 20, c: 28, f: 45, kcal: 560 },
+    { name: "طحينة", p: 17, c: 10, f: 53, kcal: 595 },
+    { name: "سمسم", p: 17, c: 23, f: 50, kcal: 573 },
+    { name: "شوكولاته داكنة", p: 7, c: 46, f: 43, kcal: 600 },
+  ]
 };
 
-// مكتبة وجبات — نستخدم منها بس الاسم والكمية (NOT السعرات والماكروز)
-const FOOD_LIB = {
-  breakfast: [
-    {
-      name: "بيض + توست بر + خضار",
-      amount: "2 بيضة + 2 توست بر + خضار مشكلة",
-    },
-    {
-      name: "شوفان بالحليب + موز",
-      amount: "70 جم شوفان + 200 مل حليب خالي الدسم + موزة",
-    },
-    {
-      name: "زبادي يوناني + جرانولا + توت",
-      amount: "170 جم زبادي + 30 جم جرانولا + 50 جم توت",
-    },
-    {
-      name: "بيض مخفوق + جبن لايت + خبز بر",
-      amount: "2 بيضة + 30 جم جبن لايت + 2 توست بر",
-    },
-    {
-      name: "بروتين شيك + موز + زبدة فول سوداني",
-      amount: "سكوب واي + موزة + 15 جم زبدة فول سوداني",
-    },
-  ],
-  lunch: [
-    {
-      name: "صدر دجاج مشوي + رز أبيض + سلطة",
-      amount: "150 جم دجاج + 150 جم رز مطبوخ + سلطة كبيرة",
-    },
-    {
-      name: "لحم قليل الدهن + بطاط مشوي + خضار",
-      amount: "150 جم لحم + 200 جم بطاط بالفرن + خضار سوتيه",
-    },
-    {
-      name: "سمك مشوي + رز بني + سلطة",
-      amount: "150 جم سمك + 150 جم رز بني + سلطة",
-    },
-    {
-      name: "دجاج مشوي + مكرونة قمح كامل + خضار",
-      amount: "150 جم دجاج + 80 جم مكرونة قبل الطبخ + خضار",
-    },
-    {
-      name: "كباب لحم مشوي + رز + سلطة",
-      amount: "150 جم كباب + 150 جم رز مطبوخ + سلطة",
-    },
-  ],
-  dinner: [
-    {
-      name: "تونة + خبز بر + خضار",
-      amount: "علبة تونة مصفّاة + 2 توست بر + خضار",
-    },
-    {
-      name: "بيض + جبن لايت + شوفان خفيف",
-      amount: "2 بيضة + 30 جم جبن لايت + 40 جم شوفان",
-    },
-    {
-      name: "زبادي يوناني + فواكه + مكسرات",
-      amount: "170 جم زبادي + 100 جم فواكه + 15 جم مكسرات",
-    },
-    {
-      name: "دجاج مشوي + خضار فقط (خفيف)",
-      amount: "120 جم دجاج + خضار مشوية / سلطة كبيرة",
-    },
-    {
-      name: "سمك مشوي + سلطة تبولة",
-      amount: "150 جم سمك + 150 جم تبولة",
-    },
-  ],
-  snack: [
-    {
-      name: "مكسرات نيّة",
-      amount: "20–25 جم مكسرات مشكلة",
-    },
-    {
-      name: "بروتين شيك بالماء",
-      amount: "سكوب واي + ماء",
-    },
-    {
-      name: "فاكهة + قهوة سادة",
-      amount: "تفاحة / موزة + قهوة بدون سكر",
-    },
-    {
-      name: "أرز كيك + زبدة فول سوداني",
-      amount: "2 حبة أرز كيك + 15 جم زبدة فول",
-    },
-    {
-      name: "زبادي لايت + خيار",
-      amount: "150 جم زبادي لايت + خيار",
-    },
-  ],
-};
-
-function pickRandom(arr) {
+// ======================================================
+// أداة اختيار عشوائي
+// ======================================================
+function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// توزيع السعرات على الوجبات حسب عدد الوجبات
-function getDistribution(mealsCount) {
-  if (mealsCount === 2) {
-    // فطور + عشاء
-    return {
-      keys: ["breakfast", "dinner"],
-      weights: { breakfast: 0.45, dinner: 0.55 },
-    };
+// ======================================================
+// 2) خوارزمية توليد وجبة واحدة
+// ======================================================
+function buildMeal(goalKcal) {
+  const prot = pick(FOODS.protein);
+  const carb = pick(FOODS.carbs);
+  const fat = pick(FOODS.fats);
+
+  // نجرب 100 محاولة لإيجاد أفضل توليفة
+  let best = null;
+
+  for (let i = 0; i < 100; i++) {
+    // نسب عشوائية + scaling حسب الهدف
+    const pMult = Math.random() * 2 + 0.5;  // 0.5 - 2.5
+    const cMult = Math.random() * 2 + 0.5;
+    const fMult = Math.random() * 2 + 0.5;
+
+    const totalKcal =
+      prot.kcal * pMult +
+      carb.kcal * cMult +
+      fat.kcal * fMult;
+
+    if (!best || Math.abs(totalKcal - goalKcal) < Math.abs(best.kcal - goalKcal)) {
+      best = {
+        kcal: Math.round(totalKcal),
+        protein: Math.round(prot.p * pMult),
+        carbs: Math.round(carb.c * cMult),
+        fat: Math.round(fat.f * fMult),
+        items: [
+          { name: prot.name, grams: Math.round(100 * pMult) },
+          { name: carb.name, grams: Math.round(100 * cMult) },
+          { name: fat.name, grams: Math.round(10 * fMult) },
+        ],
+      };
+    }
   }
-  if (mealsCount === 3) {
-    // فطور + غداء + عشاء
-    return {
-      keys: ["breakfast", "lunch", "dinner"],
-      weights: { breakfast: 0.25, lunch: 0.40, dinner: 0.35 },
-    };
-  }
-  // الافتراضي = ٤ وجبات (مع سناك)
-  return {
-    keys: ["breakfast", "lunch", "dinner", "snack"],
-    weights: { breakfast: 0.25, lunch: 0.40, dinner: 0.25, snack: 0.10 },
-  };
+
+  return best;
 }
 
-// يبني يوم كامل بحيث مجموع الماكروز ≈ خطة المستخدم
-function buildDay(plan, mealsCount) {
-  const base = {
-    calories: Number(plan?.calories || 2200),
-    protein: Number(plan?.protein || 140),
-    carbs: Number(plan?.carbs || 230),
-    fat: Number(plan?.fat || 70),
-  };
+// ======================================================
+// 3) توزيع السعرات حسب عدد الوجبات
+// ======================================================
+function getDistribution(mealsCount) {
+  if (mealsCount === 2) return [0.55, 0.45];
+  if (mealsCount === 3) return [0.35, 0.4, 0.25];
+  return [0.25, 0.4, 0.25, 0.1]; // الافتراضي: 4 وجبات
+}
 
-  const { keys, weights } = getDistribution(mealsCount);
+// ======================================================
+// 4) بناء اليوم كامل
+// ======================================================
+function buildDay(base, mealsCount) {
+  const dist = getDistribution(mealsCount);
 
-  // نسب الطاقة من البروتين/الكارب/الدهون
-  const totalMacroKcals =
-    base.protein * 4 + base.carbs * 4 + base.fat * 9 || 1;
-
-  const ratioP = (base.protein * 4) / totalMacroKcals;
-  const ratioC = (base.carbs * 4) / totalMacroKcals;
-  const ratioF = (base.fat * 9) / totalMacroKcals;
-
-  const meals = keys.map((key) => {
-    const w = weights[key] || 0;
-    const targetKcals = Math.round(base.calories * w);
-
-    // نحسب الماكروز لهذه الوجبة بنفس نسب اليوم كامل
-    const protein = Math.round((ratioP * targetKcals) / 4);
-    const carbs = Math.round((ratioC * targetKcals) / 4);
-    const fat = Math.round((ratioF * targetKcals) / 9);
-
-    const foodTemplate =
-      pickRandom(FOOD_LIB[key] || [{ name: "وجبة مخصصة", amount: "" }]);
+  const meals = dist.map((ratio, i) => {
+    const goal = Math.round(base.calories * ratio);
+    const meal = buildMeal(goal);
 
     return {
-      key,
-      type: ARABIC_LABEL[key] || key,
-      name: foodTemplate.name,
-      amount: foodTemplate.amount,
-      kcals: targetKcals,
-      protein,
-      carbs,
-      fat,
-      targetKcals, // نستخدمه في الـ UI كـ "هدف الوجبة"
+      key: ["breakfast", "lunch", "dinner", "snack"][i] || `meal${i+1}`,
+      type: ["فطور", "غداء", "عشاء", "سناك"][i] || `وجبة ${i+1}`,
+      kcals: meal.kcal,
+      protein: meal.protein,
+      carbs: meal.carbs,
+      fat: meal.fat,
+      items: meal.items,
+      targetKcals: goal,
     };
   });
 
   // ملخص اليوم
   const summary = meals.reduce(
-    (acc, m) => {
-      acc.totalCalories += m.kcals || 0;
-      acc.totalProtein += m.protein || 0;
-      acc.totalCarbs += m.carbs || 0;
-      acc.totalFat += m.fat || 0;
-      return acc;
+    (a, m) => {
+      a.totalCalories += m.kcals;
+      a.totalProtein += m.protein;
+      a.totalCarbs += m.carbs;
+      a.totalFat += m.fat;
+      return a;
     },
     { totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 }
   );
 
-  return { base, meals, summary };
+  return { meals, summary };
 }
 
+// ======================================================
+// 5) API Route
+// ======================================================
 export default async function handler(req, res) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "method not allowed" });
@@ -198,37 +152,40 @@ export default async function handler(req, res) {
     if (!userJwt?.id)
       return res.status(401).json({ error: "unauthorized" });
 
+    const { mealsCount } = req.body || {};
+    const count = [2, 3, 4].includes(mealsCount) ? mealsCount : 4;
+
     const user = await prisma.user.findUnique({
       where: { id: Number(userJwt.id) },
       select: { plan: true },
     });
 
-    let plan = null;
-    if (user?.plan) {
-      try {
-        plan =
-          typeof user.plan === "string" ? JSON.parse(user.plan) : user.plan;
-      } catch {
-        plan = null;
-      }
+    if (!user?.plan) {
+      return res.status(200).json({
+        ok: false,
+        error: "no plan yet",
+      });
     }
 
-    // عدد الوجبات المطلوب (لو ما جاي من الفرونت → افتراضي ٤)
-    let mealsCount = 4;
-    if (req.body && typeof req.body.mealsCount !== "undefined") {
-      const n = Number(req.body.mealsCount);
-      if ([2, 3, 4].includes(n)) mealsCount = n;
-    }
+    const plan =
+      typeof user.plan === "string" ? JSON.parse(user.plan) : user.plan;
 
-    const { base, meals, summary } = buildDay(plan, mealsCount);
+    const base = {
+      calories: plan.calories,
+      protein: plan.protein,
+      carbs: plan.carbs,
+      fat: plan.fat,
+    };
+
+    const { meals, summary } = buildDay(base, count);
 
     return res.status(200).json({
       ok: true,
       basePlan: base,
       meals,
       summary,
-      mealsCount,
     });
+
   } catch (e) {
     console.error("generate-meals error:", e);
     return res.status(500).json({ error: "server error" });
