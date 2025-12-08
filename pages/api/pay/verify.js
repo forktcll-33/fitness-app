@@ -119,15 +119,21 @@ export default async function handler(req, res) {
       if (u) targetUserId = u.id;
     }
 
+    // ============================
+    //  🔥 إصلاح المشكلة هنا فقط
+    // ============================
     if (paid && targetUserId) {
       await prisma.user.update({
         where: { id: targetUserId },
         data: {
           isSubscribed: true,
           subscriptionTier: normalizedTier,
+
+          // ← إضافة مدة الاشتراك 90 يوم
+          subscriptionStart: new Date(),
+          subscriptionEnd: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         },
       });
-    
 
       console.log(
         "VERIFY → PAID ✅ USER:",
