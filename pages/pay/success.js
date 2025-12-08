@@ -15,23 +15,12 @@ export default function PaySuccess() {
 
     const q = router.query || {};
 
-    // 👈 نفضّل invoice_id أولاً، ثم المخزّن، ثم id (لو كان فعلاً Invoice)
-    let invId =
-      q.invoice_id ||
-      q.invoiceId ||
-      (typeof window !== "undefined" && localStorage.getItem("pay_inv")) ||
-      q.id;
+    // 👈 نفضّل invoice_id أولاً، ثم invoiceId، ثم id فقط
+    let invId = q.invoice_id || q.invoiceId || q.id;
 
     // لو جاينا placeholder زي {id} نلغيه
     if (invId && invId === "{id}") {
       invId = null;
-    }
-
-    // نخزن رقم الفاتورة لو موجود
-    if (invId) {
-      try {
-        localStorage.setItem("pay_inv", String(invId));
-      } catch {}
     }
 
     // ================================
@@ -40,26 +29,22 @@ export default function PaySuccess() {
     if (!invId) {
       setMsg("تم إلغاء العملية، سيتم إعادتك لصفحة الباقات…");
 
-      // نرجّع المستخدم لصفحة الاشتراكات الحقيقية داخل Onboarding
-      const to = "/onboarding";
-
       const backTimer = setTimeout(() => {
         if (canceled) return;
-        router.replace(to);
+        router.replace("/onboarding");
       }, 2000);
 
-      // نحفظ المؤقت عشان ننظفه في الـ cleanup
       timerId = backTimer;
-      return;
+      return () => {
+        canceled = true;
+        if (timerId) clearTimeout(timerId);
+      };
     }
 
     // مهلة قصوى في حال مافي رد من /api/pay/verify
     hardTimeoutId = setTimeout(() => {
       if (canceled) return;
       setMsg("تم الدفع. سيتم تحويلك للوحة التحكم…");
-      try {
-        localStorage.removeItem("pay_inv");
-      } catch {}
       router.replace("/dashboard?paid=1");
     }, 10000);
 
@@ -83,9 +68,6 @@ export default function PaySuccess() {
         if (res.ok && data?.ok && data?.status === "paid") {
           if (canceled) return;
           setMsg("تم الدفع وتفعيل الاشتراك ✅ سيتم تحويلك الآن…");
-          try {
-            localStorage.removeItem("pay_inv");
-          } catch {}
 
           // توليد الخطة بعد الدفع
           fetch("/api/plan/generate", {

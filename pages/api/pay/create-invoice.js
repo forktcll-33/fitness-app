@@ -19,7 +19,10 @@ export default async function handler(req, res) {
     }
 
     const callbackUrl = "https://fitlife.com.sa/api/pay/callback";
-    const returnUrl = "https://fitlife.com.sa/pay/success";  // 👈 بدون {id}
+
+    // 🔥 هنا نحدد مسارات الرجوع بشكل واضح
+    const successUrl = "https://fitlife.com.sa/pay/success";   // بعد الدفع
+    const backUrl = "https://fitlife.com.sa/onboarding";       // لو رجع بدون دفع
 
     const {
       amount,
@@ -68,16 +71,16 @@ export default async function handler(req, res) {
       currency: curr,
       description: desc,
       callback_url: callbackUrl,
-      success_url: returnUrl, // 👈
-      back_url: returnUrl,    // 👈
+      success_url: successUrl, // ✅ بعد الدفع الناجح
+      back_url: backUrl,       // ✅ لو ضغط Back بدون دفع
       metadata: {
         customer_name: customerName,
         customer_email: customerEmail,
         subscription_tier: safeTier,
         new_tier: safeTier,
-        tier: safeTier, 
+        tier: safeTier,
         upgrade: false,
-        user_id: userId,   // ← هذا هو المفتاح
+        user_id: userId, // ← ربط الفاتورة بالمستخدم
       },
     };
 
