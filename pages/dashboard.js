@@ -84,7 +84,7 @@ export async function getServerSideProps({ req }) {
 
       // ما قد اشترك أصلاً → يروح يختار باقة
       return {
-        redirect: { destination: "/subscriptions", permanent: false },
+        redirect: { destination: "/onboarding", permanent: false },
       };
     }
 
