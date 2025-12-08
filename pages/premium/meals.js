@@ -108,6 +108,9 @@ export default function MealGenerator({ userName, basePlan }) {
   const [loadingDay, setLoadingDay] = useState(false);
   const [loadingMeal, setLoadingMeal] = useState(null);
 
+  // ✅ عدد الوجبات (افتراضي 4 زي ما هو الآن)
+  const [mealCount, setMealCount] = useState(4);
+
   const hasPlan = !!basePlan?.calories;
 
   const loadDay = async () => {
@@ -118,6 +121,11 @@ export default function MealGenerator({ userName, basePlan }) {
       const res = await fetch("/api/premium/generate-meals", {
         method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ mealCount }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -141,6 +149,11 @@ export default function MealGenerator({ userName, basePlan }) {
       const res = await fetch("/api/premium/generate-meals", {
         method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ mealCount }),
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.meals)) {
@@ -165,12 +178,13 @@ export default function MealGenerator({ userName, basePlan }) {
       className="min-h-screen bg-[#020617] text-gray-100"
       dir="rtl"
     >
-        <a
-  href="/premium"
-  className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gray-600 hover:bg-black/60 text-gray-200 transition w-fit mb-4"
->
-  ← رجوع
-</a>
+      <a
+        href="/premium"
+        className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gray-600 hover:bg-black/60 text-gray-200 transition w-fit mb-4"
+      >
+        ← رجوع
+      </a>
+
       {/* HERO */}
       <div className="text-center py-10 border-b border-gray-800 bg-gradient-to-b from-black/40 to-transparent">
         <Utensils className="mx-auto w-12 h-12 text-yellow-400" />
@@ -190,7 +204,7 @@ export default function MealGenerator({ userName, basePlan }) {
       </div>
 
       <div className="max-w-5xl mx-auto p-6 space-y-8">
-        {/* زر توليد اليوم */}
+        {/* زر توليد اليوم + اختيار عدد الوجبات */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-sm text-gray-300 text-right md:text-right">
             <p>
@@ -210,17 +224,29 @@ export default function MealGenerator({ userName, basePlan }) {
             )}
           </div>
 
-          <button
-            onClick={loadDay}
-            className="w-full md:w-auto px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md"
-          >
-            <RefreshCcw
-              className={`w-5 h-5 ${
-                loadingDay ? "animate-spin" : ""
-              }`}
-            />
-            {loadingDay ? "جاري التوليد…" : "توليد خطة اليوم"}
-          </button>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <select
+              value={mealCount}
+              onChange={(e) => setMealCount(Number(e.target.value))}
+              className="px-3 py-2 bg-black/40 border border-gray-700 rounded-lg text-sm text-gray-200 w-full md:w-auto"
+            >
+              <option value={2}>وجبتين في اليوم</option>
+              <option value={3}>3 وجبات في اليوم</option>
+              <option value={4}>4 وجبات في اليوم (افتراضي)</option>
+            </select>
+
+            <button
+              onClick={loadDay}
+              className="w-full md:w-auto px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md"
+            >
+              <RefreshCcw
+                className={`w-5 h-5 ${
+                  loadingDay ? "animate-spin" : ""
+                }`}
+              />
+              {loadingDay ? "جاري التوليد…" : "توليد خطة اليوم"}
+            </button>
+          </div>
         </div>
 
         {/* ملخص اليوم */}

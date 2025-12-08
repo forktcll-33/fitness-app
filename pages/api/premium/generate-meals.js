@@ -187,7 +187,25 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function buildDay(plan) {
+// نختار أقرب وجبة لهدف السعرات بدل العشوائي 100%
+function pickBestFood(arr, targetKcals) {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  if (!targetKcals || targetKcals <= 0) return pickRandom(arr);
+
+  let best = arr[0];
+  let bestDiff = Math.abs(arr[0].kcals - targetKcals);
+
+  for (let i = 1; i < arr.length; i++) {
+    const diff = Math.abs(arr[i].kcals - targetKcals);
+    if (diff < bestDiff) {
+      best = arr[i];
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+function buildDay(plan, mealCountRaw) {
   const base = {
     calories: plan?.calories || 2200,
     protein: plan?.protein || 140,
@@ -195,16 +213,27 @@ function buildDay(plan) {
     fat: plan?.fat || 70,
   };
 
-  const dist = {
-    breakfast: 0.25,
-    lunch: 0.4,
-    dinner: 0.25,
-    snack: 0.1,
-  };
+  const count =
+    [2, 3, 4].includes(Number(mealCountRaw)) ? Number(mealCountRaw) : 4;
 
-  const meals = MEAL_TYPES.map((type) => {
-    const target = Math.round(base.calories * dist[type]);
-    const food = pickRandom(FOOD_LIB[type]);
+  let mealTypes = [];
+  let dist = {};
+
+  if (count === 2) {
+    mealTypes = ["breakfast", "dinner"];
+    dist = { breakfast: 0.55, dinner: 0.45 };
+  } else if (count === 3) {
+    mealTypes = ["breakfast", "lunch", "dinner"];
+    dist = { breakfast: 0.3, lunch: 0.45, dinner: 0.25 };
+  } else {
+    mealTypes = ["breakfast", "lunch", "dinner", "snack"];
+    dist = { breakfast: 0.25, lunch: 0.4, dinner: 0.25, snack: 0.1 };
+  }
+
+  const meals = mealTypes.map((type) => {
+    const target = Math.round(base.calories * (dist[type] || 0));
+    const foodLib = FOOD_LIB[type] || [];
+    const food = pickBestFood(foodLib, target) || pickRandom(foodLib);
 
     return {
       key: type,
@@ -259,7 +288,14 @@ export default async function handler(req, res) {
       }
     }
 
-    const { base, meals, summary } = buildDay(plan);
+    const body =
+      req.body && typeof req.body === "object"
+        ? req.body
+        : {};
+
+    const mealCount = body.mealCount || 4;
+
+    const { base, meals, summary } = buildDay(plan, mealCount);
 
     return res.status(200).json({
       ok: true,
