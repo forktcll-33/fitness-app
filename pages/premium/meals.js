@@ -100,6 +100,41 @@ function calcSummary(meals, basePlan) {
   };
 }
 
+// نسخة صغيرة من buildPortion للواجهة لاستبدال الأصناف
+function buildPortionClient(food, factor) {
+  if (!food || factor <= 0) {
+    return {
+      text: `0 ${food?.unit || ""}`.trim(),
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+    };
+  }
+
+  const pieceUnits = ["حبة", "شريحة", "سكوب"];
+
+  if (pieceUnits.includes(food.unit)) {
+    const count = Math.max(1, Math.round(factor));
+    return {
+      text: `${count} ${food.unit}`,
+      protein: Math.round(food.protein * count),
+      carbs: Math.round(food.carbs * count),
+      fat: Math.round(food.fat * count),
+    };
+  }
+
+  const gramsRaw = factor * food.baseAmount;
+  const grams = Math.max(10, Math.round(gramsRaw / 5) * 5);
+  const multi = grams / food.baseAmount;
+
+  return {
+    text: `${grams} ${food.unit}`,
+    protein: Math.round(food.protein * multi),
+    carbs: Math.round(food.carbs * multi),
+    fat: Math.round(food.fat * multi),
+  };
+}
+
 export default function MealGenerator({ userName, basePlan }) {
   const [meals, setMeals] = useState(null);
   const [summary, setSummary] = useState(
@@ -112,6 +147,16 @@ export default function MealGenerator({ userName, basePlan }) {
   const [mealCount, setMealCount] = useState(4);
 
   const hasPlan = !!basePlan?.calories;
+
+  // حالة الـ Modal للبدائل
+  const [altState, setAltState] = useState({
+    open: false,
+    mealKey: null,
+    slot: null,
+    currentKey: null,
+    foods: [],
+    loading: false,
+  });
 
   const loadDay = async () => {
     setLoadingDay(true);
@@ -140,6 +185,7 @@ export default function MealGenerator({ userName, basePlan }) {
 
     setLoadingDay(false);
   };
+
   const regenerateOne = async (key) => {
     if (!meals || !meals.length) return;
     setLoadingMeal(key);
@@ -158,7 +204,6 @@ export default function MealGenerator({ userName, basePlan }) {
       const data = await res.json();
 
       if (data.ok && Array.isArray(data.meals)) {
-        // نستخدم وجبة جديدة واحدة فقط مع الحفاظ على باقي الوجبات
         const newMeal = data.meals.find((m) => m.key === key);
 
         if (newMeal) {
@@ -175,6 +220,147 @@ export default function MealGenerator({ userName, basePlan }) {
     }
 
     setLoadingMeal(null);
+  };
+
+  // فتح قائمة البدائل لصنف معيّن
+  const openAlternatives = async (meal, item) => {
+    if (!item || !meal) return;
+
+    setAltState({
+      open: true,
+      mealKey: meal.key,
+      slot: item.slot,
+      currentKey: item.foodKey,
+      foods: [],
+      loading: true,
+    });
+
+    try {
+      const params = new URLSearchParams({
+        mealType: meal.key,
+        slot: item.slot,
+        currentKey: item.foodKey,
+      }).toString();
+
+      const res = await fetch(
+        `/api/premium/generate-meals?${params}`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.foods)) {
+        setAltState((prev) => ({
+          ...prev,
+          foods: data.foods,
+          loading: false,
+        }));
+      } else {
+        setAltState((prev) => ({
+          ...prev,
+          loading: false,
+        }));
+      }
+    } catch (e) {
+      console.error("Load alternatives failed:", e);
+      setAltState((prev) => ({
+        ...prev,
+        loading: false,
+      }));
+    }
+  };
+
+  // تطبيق بديل جديد على الصنف
+  const applyAlternative = (food) => {
+    if (!food || !meals || !meals.length) {
+      setAltState({
+        open: false,
+        mealKey: null,
+        slot: null,
+        currentKey: null,
+        foods: [],
+        loading: false,
+      });
+      return;
+    }
+
+    setMeals((prevMeals) => {
+      if (!prevMeals) return prevMeals;
+
+      const idx = prevMeals.findIndex(
+        (m) => m.key === altState.mealKey
+      );
+      if (idx === -1) return prevMeals;
+
+      const meal = prevMeals[idx];
+      if (!meal.items || !meal.items.length) return prevMeals;
+
+      const newItems = meal.items.map((it) => {
+        if (
+          it.slot === altState.slot &&
+          it.foodKey === altState.currentKey
+        ) {
+          const factor = it.factor || 1;
+          const portion = buildPortionClient(food, factor);
+
+          return {
+            ...it,
+            foodKey: food.key,
+            name: food.name,
+            unit: food.unit,
+            baseAmount: food.baseAmount,
+            factor,
+            amountText: portion.text,
+            protein: portion.protein,
+            carbs: portion.carbs,
+            fat: portion.fat,
+          };
+        }
+        return it;
+      });
+
+      const totals = newItems.reduce(
+        (acc, it) => {
+          acc.protein += it.protein || 0;
+          acc.carbs += it.carbs || 0;
+          acc.fat += it.fat || 0;
+          return acc;
+        },
+        { protein: 0, carbs: 0, fat: 0 }
+      );
+
+      const kcals =
+        totals.protein * 4 + totals.carbs * 4 + totals.fat * 9;
+
+      const newMeal = {
+        ...meal,
+        items: newItems,
+        name: newItems.map((i) => i.name).join(" + "),
+        amount: newItems.map((i) => i.amountText).join(" + "),
+        protein: Math.round(totals.protein),
+        carbs: Math.round(totals.carbs),
+        fat: Math.round(totals.fat),
+        kcals: Math.round(kcals),
+      };
+
+      const nextMeals = [...prevMeals];
+      nextMeals[idx] = newMeal;
+
+      setSummary(calcSummary(nextMeals, basePlan));
+
+      return nextMeals;
+    });
+
+    setAltState({
+      open: false,
+      mealKey: null,
+      slot: null,
+      currentKey: null,
+      foods: [],
+      loading: false,
+    });
   };
 
   return (
@@ -327,11 +513,37 @@ export default function MealGenerator({ userName, basePlan }) {
                   <Sparkles className="w-5 h-5 text-yellow-400" />
                 </div>
 
-                <div className="text-sm text-yellow-200 font-semibold">
-                  {meal.name}
-                </div>
+                {/* أسماء الأصناف (قابلة للضغط لاختيار بدائل) */}
+                {meal.items && meal.items.length ? (
+                  <div className="text-sm text-yellow-200 font-semibold flex flex-wrap items-center gap-1">
+                    {meal.items.map((item, idx) => (
+                      <span key={`${item.slot}-${idx}`} className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openAlternatives(meal, item)}
+                          className="hover:text-yellow-300 underline decoration-dotted underline-offset-2"
+                        >
+                          {item.name}
+                        </button>
+                        {idx < meal.items.length - 1 && (
+                          <span className="text-gray-400">+</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-yellow-200 font-semibold">
+                    {meal.name}
+                  </div>
+                )}
+
                 <div className="text-[11px] text-gray-300">
-                  الكمية المقترحة: {meal.amount}
+                  الكمية المقترحة:{" "}
+                  {meal.items && meal.items.length
+                    ? meal.items
+                        .map((item) => item.amountText)
+                        .join(" + ")
+                    : meal.amount}
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 text-[11px] mt-2">
@@ -372,6 +584,65 @@ export default function MealGenerator({ userName, basePlan }) {
             ))}
         </section>
       </div>
+
+      {/* Modal البدائل */}
+      {altState.open && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
+          <div className="bg-[#020617] border border-yellow-500/40 rounded-2xl p-5 max-w-md w-full max-h-[80vh] overflow-y-auto text-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-white text-base">
+                اختر بديلًا للصنف
+              </h3>
+              <button
+                onClick={() =>
+                  setAltState({
+                    open: false,
+                    mealKey: null,
+                    slot: null,
+                    currentKey: null,
+                    foods: [],
+                    loading: false,
+                  })
+                }
+                className="text-gray-400 hover:text-gray-200 text-xs"
+              >
+                إغلاق
+              </button>
+            </div>
+
+            {altState.loading && (
+              <div className="text-gray-300 text-xs">
+                جاري تحميل البدائل…
+              </div>
+            )}
+
+            {!altState.loading && !altState.foods.length && (
+              <div className="text-gray-400 text-xs">
+                لا توجد بدائل متاحة حاليًا.
+              </div>
+            )}
+
+            <div className="space-y-2 mt-2">
+              {altState.foods.map((food) => (
+                <button
+                  key={food.key}
+                  type="button"
+                  onClick={() => applyAlternative(food)}
+                  className="w-full text-right border border-gray-700 hover:border-yellow-500/60 rounded-xl px-3 py-2 bg-black/40 text-xs text-gray-100"
+                >
+                  <div className="font-semibold text-yellow-200">
+                    {food.name}
+                  </div>
+                  <div className="text-[10px] text-gray-400">
+                    لكل {food.baseAmount} {food.unit}:{" "}
+                    P {food.protein}g / C {food.carbs}g / F {food.fat}g
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
