@@ -108,7 +108,7 @@ export default function MealGenerator({ userName, basePlan }) {
   const [loadingDay, setLoadingDay] = useState(false);
   const [loadingMeal, setLoadingMeal] = useState(null);
 
-  // ✅ عدد الوجبات (افتراضي 4 زي ما هو الآن)
+  // عدد الوجبات يتحكم فعليًا في التوليد الآن (2 - 3 - 4)
   const [mealCount, setMealCount] = useState(4);
 
   const hasPlan = !!basePlan?.calories;
@@ -125,7 +125,6 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        // ✅ نرسل mealCount بالاسم الصحيح
         body: JSON.stringify({ mealCount }),
       });
       const data = await res.json();
@@ -141,7 +140,6 @@ export default function MealGenerator({ userName, basePlan }) {
 
     setLoadingDay(false);
   };
-
   const regenerateOne = async (key) => {
     if (!meals || !meals.length) return;
     setLoadingMeal(key);
@@ -154,16 +152,23 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        // ✅ نفس الاسم هنا
         body: JSON.stringify({ mealCount }),
       });
+
       const data = await res.json();
+
       if (data.ok && Array.isArray(data.meals)) {
-        // نستخدم الوجبات الجديدة لكن نطابق حسب key
-        const newMap = new Map(data.meals.map((m) => [m.key, m]));
-        const updated = meals.map((m) => newMap.get(m.key) || m);
-        setMeals(updated);
-        setSummary(calcSummary(updated, basePlan || data.basePlan));
+        // نستخدم وجبة جديدة واحدة فقط مع الحفاظ على باقي الوجبات
+        const newMeal = data.meals.find((m) => m.key === key);
+
+        if (newMeal) {
+          const updated = meals.map((m) =>
+            m.key === key ? newMeal : m
+          );
+
+          setMeals(updated);
+          setSummary(calcSummary(updated, basePlan || data.basePlan));
+        }
       }
     } catch (e) {
       console.error("Regenerate meal failed:", e);
@@ -203,7 +208,8 @@ export default function MealGenerator({ userName, basePlan }) {
       </div>
 
       <div className="max-w-5xl mx-auto p-6 space-y-8">
-        {/* زر توليد اليوم + اختيار عدد الوجبات */}
+
+        {/* اختيار عدد الوجبات + زر التوليد */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-sm text-gray-300 text-right md:text-right">
             <p>
@@ -213,6 +219,7 @@ export default function MealGenerator({ userName, basePlan }) {
               </span>{" "}
               ليتم إنشاء يوم كامل من الوجبات.
             </p>
+
             {hasPlan && (
               <p className="text-xs text-gray-400 mt-1">
                 يتم الاعتماد على سعراتك الحالية:{" "}
@@ -239,9 +246,7 @@ export default function MealGenerator({ userName, basePlan }) {
               className="w-full md:w-auto px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl flex items-center justify-center gap-2 text-sm shadow-md"
             >
               <RefreshCcw
-                className={`w-5 h-5 ${
-                  loadingDay ? "animate-spin" : ""
-                }`}
+                className={`w-5 h-5 ${loadingDay ? "animate-spin" : ""}`}
               />
               {loadingDay ? "جاري التوليد…" : "توليد خطة اليوم"}
             </button>
@@ -253,9 +258,7 @@ export default function MealGenerator({ userName, basePlan }) {
           <div className="flex items-center gap-3 mb-4">
             <Flame className="w-6 h-6 text-yellow-400" />
             <div>
-              <h2 className="text-lg font-bold text-white">
-                ملخص التغذية لليوم
-              </h2>
+              <h2 className="text-lg font-bold text-white">ملخص التغذية لليوم</h2>
               <p className="text-xs text-gray-300">
                 مقارنة بين هدفك الأساسي والقيم الفعلية لليوم الحالي.
               </p>
@@ -269,18 +272,21 @@ export default function MealGenerator({ userName, basePlan }) {
                 {summary.totalCalories} / {summary.targetCalories || "—"} kcal
               </div>
             </div>
+
             <div className="bg-black/50 border border-gray-700 rounded-xl p-3">
               <div className="text-gray-400 mb-1">البروتين</div>
               <div className="font-semibold text-gray-100">
                 {summary.totalProtein}g / {summary.targetProtein || "—"}g
               </div>
             </div>
+
             <div className="bg-black/50 border border-gray-700 rounded-xl p-3">
               <div className="text-gray-400 mb-1">الكارب</div>
               <div className="font-semibold text-gray-100">
                 {summary.totalCarbs}g / {summary.targetCarbs || "—"}g
               </div>
             </div>
+
             <div className="bg-black/50 border border-gray-700 rounded-xl p-3">
               <div className="text-gray-400 mb-1">الدهون</div>
               <div className="font-semibold text-gray-100">
@@ -310,11 +316,9 @@ export default function MealGenerator({ userName, basePlan }) {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-white">
-                      {meal.type}
-                    </h3>
+                    <h3 className="text-base font-bold text-white">{meal.type}</h3>
                     <p className="text-[11px] text-gray-400">
-                      هدف السعرات لهذه الوجبة تقريبًا:{" "}
+                      هدف السعرات لهذه الوجبة:{" "}
                       <span className="text-yellow-300 font-semibold">
                         {meal.targetKcals} كالوري
                       </span>
@@ -339,21 +343,15 @@ export default function MealGenerator({ userName, basePlan }) {
                   </div>
                   <div className="bg-black/50 rounded-lg p-2 text-center">
                     <div className="text-gray-400">P</div>
-                    <div className="font-semibold text-gray-100">
-                      {meal.protein}g
-                    </div>
+                    <div className="font-semibold text-gray-100">{meal.protein}g</div>
                   </div>
                   <div className="bg-black/50 rounded-lg p-2 text-center">
                     <div className="text-gray-400">C</div>
-                    <div className="font-semibold text-gray-100">
-                      {meal.carbs}g
-                    </div>
+                    <div className="font-semibold text-gray-100">{meal.carbs}g</div>
                   </div>
                   <div className="bg-black/50 rounded-lg p-2 text-center">
                     <div className="text-gray-400">F</div>
-                    <div className="font-semibold text-gray-100">
-                      {meal.fat}g
-                    </div>
+                    <div className="font-semibold text-gray-100">{meal.fat}g</div>
                   </div>
                 </div>
 
