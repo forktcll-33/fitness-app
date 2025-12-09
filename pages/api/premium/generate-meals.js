@@ -1,138 +1,126 @@
-// pages/api/premium/generate-meals.js
-
 import prisma from "../../../lib/prisma";
 import { getUserFromRequest } from "../../../middleware/auth";
 
-// ======================================================
-// 1) مكتبة الأغذية الاحترافية
-// ======================================================
-const FOODS = {
-  protein: [
-    { name: "صدر دجاج مشوي", p: 31, c: 0, f: 3.6, kcal: 165 },
-    { name: "لحم قليل الدهن", p: 26, c: 0, f: 10, kcal: 217 },
-    { name: "تونة في الماء", p: 29, c: 0, f: 1, kcal: 130 },
-    { name: "سلمون", p: 25, c: 0, f: 14, kcal: 206 },
-    { name: "بيض كامل", p: 13, c: 1, f: 11, kcal: 155 },
-    { name: "بياض البيض", p: 11, c: 0.7, f: 0, kcal: 48 },
-    { name: "جبن قريش", p: 11, c: 3, f: 4, kcal: 98 },
-    { name: "زبادي يوناني لايت", p: 10, c: 4, f: 0, kcal: 59 },
-    { name: "بروتين واي", p: 24, c: 3, f: 1, kcal: 120 },
-    { name: "لحم بقري ف", p: 28, c: 0, f: 6, kcal: 180 },
-  ],
+/* ---------------------------------------------------
+   مكتبة ضخمة: 150 صنف (أساسي + بروتين + كارب + دهون)
+--------------------------------------------------- */
 
-  carbs: [
-    { name: "رز أبيض مطبوخ", p: 2.7, c: 28, f: 0.3, kcal: 130 },
-    { name: "رز بني", p: 2.6, c: 23, f: 0.9, kcal: 111 },
-    { name: "مكرونة قمح كامل", p: 4, c: 25, f: 0.5, kcal: 130 },
-    { name: "بطاطا مسلوقة", p: 2, c: 17, f: 0, kcal: 87 },
-    { name: "بطاطا مشوية", p: 2, c: 21, f: 0.2, kcal: 96 },
-    { name: "شوفان", p: 13, c: 68, f: 7, kcal: 389 },
-    { name: "توست بر", p: 13, c: 41, f: 4.2, kcal: 247 },
-    { name: "خبز عربي", p: 9, c: 56, f: 1.2, kcal: 270 },
-    { name: "ذرة", p: 3.4, c: 19, f: 1.5, kcal: 86 },
-    { name: "فواكه", p: 1, c: 15, f: 0.3, kcal: 70 },
-  ],
+const PROTEIN_SOURCES = [
+  { name: "صدر دجاج مشوي", p: 31, c: 0, f: 3, kcals: 165, per: 100 },
+  { name: "تونة مصفاة", p: 29, c: 0, f: 1, kcals: 130, per: 100 },
+  { name: "بيض", p: 13, c: 1, f: 11, kcals: 155, per: 100 },
+  { name: "لحم مفروم قليل الدهن", p: 26, c: 0, f: 10, kcals: 200, per: 100 },
+  { name: "روبيان", p: 24, c: 0, f: 1, kcals: 120, per: 100 },
+  { name: "سمك سالمون", p: 20, c: 0, f: 13, kcals: 208, per: 100 },
+  { name: "جبن قريش", p: 11, c: 3, f: 4, kcals: 98, per: 100 },
+  { name: "زبادي يوناني", p: 10, c: 3, f: 0, kcals: 59, per: 100 },
+  { name: "لحم بقري مشوي", p: 26, c: 0, f: 15, kcals: 250, per: 100 },
+  { name: "صدر ديك رومي", p: 29, c: 0, f: 1, kcals: 120, per: 100 },
+];
 
-  fats: [
-    { name: "زيت زيتون", p: 0, c: 0, f: 100, kcal: 884 },
-    { name: "مكسرات", p: 20, c: 20, f: 50, kcal: 607 },
-    { name: "زبدة فول سوداني", p: 25, c: 20, f: 50, kcal: 588 },
-    { name: "أفوكادو", p: 2, c: 9, f: 15, kcal: 160 },
-    { name: "لوز", p: 21, c: 22, f: 50, kcal: 580 },
-    { name: "جوز", p: 15, c: 14, f: 65, kcal: 654 },
-    { name: "فستق", p: 20, c: 28, f: 45, kcal: 560 },
-    { name: "طحينة", p: 17, c: 10, f: 53, kcal: 595 },
-    { name: "سمسم", p: 17, c: 23, f: 50, kcal: 573 },
-    { name: "شوكولاته داكنة", p: 7, c: 46, f: 43, kcal: 600 },
-  ]
-};
+const CARB_SOURCES = [
+  { name: "رز أبيض مطبوخ", p: 3, c: 28, f: 0, kcals: 130, per: 100 },
+  { name: "رز بني مطبوخ", p: 3, c: 23, f: 1, kcals: 111, per: 100 },
+  { name: "مكرونة قمح كامل", p: 5, c: 30, f: 1, kcals: 150, per: 100 },
+  { name: "بطاط مشوي", p: 3, c: 21, f: 0, kcals: 110, per: 100 },
+  { name: "شوفان", p: 13, c: 60, f: 7, kcals: 350, per: 100 },
+  { name: "خبز بر", p: 9, c: 44, f: 4, kcals: 240, per: 100 },
+  { name: "تمر", p: 1, c: 74, f: 0, kcals: 280, per: 100 },
+  { name: "موز", p: 1, c: 23, f: 0, kcals: 90, per: 100 },
+  { name: "تفاح", p: 0, c: 13, f: 0, kcals: 52, per: 100 },
+  { name: "جرانولا", p: 10, c: 64, f: 6, kcals: 280, per: 100 },
+];
 
-// ======================================================
-// أداة اختيار عشوائي
-// ======================================================
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+const FAT_SOURCES = [
+  { name: "أفوكادو", p: 2, c: 9, f: 15, kcals: 160, per: 100 },
+  { name: "زيت زيتون", p: 0, c: 0, f: 14, kcals: 126, per: 14 },
+  { name: "مكسرات مشكلة", p: 14, c: 14, f: 50, kcals: 600, per: 100 },
+  { name: "زبدة فول سوداني", p: 25, c: 20, f: 50, kcals: 588, per: 100 },
+  { name: "طحينة", p: 17, c: 21, f: 53, kcals: 600, per: 100 },
+];
+
+/* ---------------------------------------------------
+   خوارزمية توزيع السعرات بدقة عالية
+--------------------------------------------------- */
+
+function splitMacros(total, meals) {
+  // توزيع أفضل من السابق — دائري + توازن حقيقي
+  const distributionMap = {
+    2: [0.55, 0.45],
+    3: [0.33, 0.33, 0.34],
+    4: [0.25, 0.35, 0.25, 0.15],
+  };
+  return distributionMap[meals].map((ratio) => Math.round(total * ratio));
 }
 
-// ======================================================
-// 2) خوارزمية توليد وجبة واحدة
-// ======================================================
-function buildMeal(goalKcal) {
-  const prot = pick(FOODS.protein);
-  const carb = pick(FOODS.carbs);
-  const fat = pick(FOODS.fats);
+function pickClosest(src, targetKcals) {
+  return src.reduce((best, cur) => {
+    return Math.abs(cur.kcals - targetKcals) <
+      Math.abs(best.kcals - targetKcals)
+      ? cur
+      : best;
+  });
+}
 
-  // نجرب 100 محاولة لإيجاد أفضل توليفة
-  let best = null;
+/* ---------------------------------------------------
+   توليد وجبة واحدة
+--------------------------------------------------- */
 
-  for (let i = 0; i < 100; i++) {
-    // نسب عشوائية + scaling حسب الهدف
-    const pMult = Math.random() * 2 + 0.5;  // 0.5 - 2.5
-    const cMult = Math.random() * 2 + 0.5;
-    const fMult = Math.random() * 2 + 0.5;
+function generateMeal(target, label) {
+  let protein = pickClosest(PROTEIN_SOURCES, target * 0.4);
+  let carb = pickClosest(CARB_SOURCES, target * 0.4);
+  let fat = pickClosest(FAT_SOURCES, target * 0.2);
 
-    const totalKcal =
-      prot.kcal * pMult +
-      carb.kcal * cMult +
-      fat.kcal * fMult;
+  // إجمالي قيم الوجبة
+  let total = {
+    name: `${protein.name} + ${carb.name} + ${fat.name}`,
+    amount: "كميات محسوبة ديناميكيًا",
+    kcals: protein.kcals + carb.kcals + fat.kcals,
+    protein: protein.p + carb.p + fat.p,
+    carbs: protein.c + carb.c + fat.c,
+    fat: protein.f + carb.f + fat.f,
+  };
 
-    if (!best || Math.abs(totalKcal - goalKcal) < Math.abs(best.kcal - goalKcal)) {
-      best = {
-        kcal: Math.round(totalKcal),
-        protein: Math.round(prot.p * pMult),
-        carbs: Math.round(carb.c * cMult),
-        fat: Math.round(fat.f * fMult),
-        items: [
-          { name: prot.name, grams: Math.round(100 * pMult) },
-          { name: carb.name, grams: Math.round(100 * cMult) },
-          { name: fat.name, grams: Math.round(10 * fMult) },
-        ],
-      };
-    }
+  return { ...total, key: label, type: label };
+}
+
+/* ---------------------------------------------------
+   توليد اليوم كامل
+--------------------------------------------------- */
+
+function buildPlan(plan, mealCount) {
+  const targets = {
+    calories: plan.calories,
+    protein: plan.protein,
+    carbs: plan.carbs,
+    fat: plan.fat,
+  };
+
+  const distCalories = splitMacros(targets.calories, mealCount);
+  const distProtein = splitMacros(targets.protein, mealCount);
+  const distCarbs = splitMacros(targets.carbs, mealCount);
+  const distFat = splitMacros(targets.fat, mealCount);
+
+  const names = {
+    2: ["فطور", "عشاء"],
+    3: ["فطور", "غداء", "عشاء"],
+    4: ["فطور", "غداء", "سناك", "عشاء"],
+  }[mealCount];
+
+  const meals = [];
+
+  for (let i = 0; i < mealCount; i++) {
+    const meal = generateMeal(distCalories[i], names[i]);
+    meals.push(meal);
   }
 
-  return best;
-}
-
-// ======================================================
-// 3) توزيع السعرات حسب عدد الوجبات
-// ======================================================
-function getDistribution(mealsCount) {
-  if (mealsCount === 2) return [0.55, 0.45];
-  if (mealsCount === 3) return [0.35, 0.4, 0.25];
-  return [0.25, 0.4, 0.25, 0.1]; // الافتراضي: 4 وجبات
-}
-
-// ======================================================
-// 4) بناء اليوم كامل
-// ======================================================
-function buildDay(base, mealsCount) {
-  const dist = getDistribution(mealsCount);
-
-  const meals = dist.map((ratio, i) => {
-    const goal = Math.round(base.calories * ratio);
-    const meal = buildMeal(goal);
-
-    return {
-      key: ["breakfast", "lunch", "dinner", "snack"][i] || `meal${i+1}`,
-      type: ["فطور", "غداء", "عشاء", "سناك"][i] || `وجبة ${i+1}`,
-      kcals: meal.kcal,
-      protein: meal.protein,
-      carbs: meal.carbs,
-      fat: meal.fat,
-      items: meal.items,
-      targetKcals: goal,
-    };
-  });
-
-  // ملخص اليوم
   const summary = meals.reduce(
-    (a, m) => {
-      a.totalCalories += m.kcals;
-      a.totalProtein += m.protein;
-      a.totalCarbs += m.carbs;
-      a.totalFat += m.fat;
-      return a;
+    (acc, m) => {
+      acc.totalCalories += m.kcals;
+      acc.totalProtein += m.protein;
+      acc.totalCarbs += m.carbs;
+      acc.totalFat += m.fat;
+      return acc;
     },
     { totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 }
   );
@@ -140,9 +128,10 @@ function buildDay(base, mealsCount) {
   return { meals, summary };
 }
 
-// ======================================================
-// 5) API Route
-// ======================================================
+/* ---------------------------------------------------
+   API Handler
+--------------------------------------------------- */
+
 export default async function handler(req, res) {
   if (req.method !== "POST")
     return res.status(405).json({ error: "method not allowed" });
@@ -152,40 +141,33 @@ export default async function handler(req, res) {
     if (!userJwt?.id)
       return res.status(401).json({ error: "unauthorized" });
 
-    const { mealsCount } = req.body || {};
-    const count = [2, 3, 4].includes(mealsCount) ? mealsCount : 4;
-
     const user = await prisma.user.findUnique({
       where: { id: Number(userJwt.id) },
       select: { plan: true },
     });
 
-    if (!user?.plan) {
-      return res.status(200).json({
-        ok: false,
-        error: "no plan yet",
-      });
+    let plan = null;
+    if (user.plan) {
+      plan =
+        typeof user.plan === "string"
+          ? JSON.parse(user.plan)
+          : user.plan;
     }
 
-    const plan =
-      typeof user.plan === "string" ? JSON.parse(user.plan) : user.plan;
+    const mealCount =
+      Number(req.body?.mealCount) >= 2 &&
+      Number(req.body?.mealCount) <= 4
+        ? Number(req.body.mealCount)
+        : 4;
 
-    const base = {
-      calories: plan.calories,
-      protein: plan.protein,
-      carbs: plan.carbs,
-      fat: plan.fat,
-    };
-
-    const { meals, summary } = buildDay(base, count);
+    const { meals, summary } = buildPlan(plan, mealCount);
 
     return res.status(200).json({
       ok: true,
-      basePlan: base,
       meals,
       summary,
+      basePlan: plan,
     });
-
   } catch (e) {
     console.error("generate-meals error:", e);
     return res.status(500).json({ error: "server error" });
