@@ -100,7 +100,7 @@ function calcSummary(meals, basePlan) {
   };
 }
 
-// نسخة صغيرة من buildPortion للواجهة لاستبدال الأصناف
+// نسخة صغيرة من buildPortion للواجهة
 function buildPortionClient(food, factor) {
   if (!food || factor <= 0) {
     return {
@@ -143,12 +143,9 @@ export default function MealGenerator({ userName, basePlan }) {
   const [loadingDay, setLoadingDay] = useState(false);
   const [loadingMeal, setLoadingMeal] = useState(null);
 
-  // عدد الوجبات يتحكم فعليًا في التوليد الآن (2 - 3 - 4)
   const [mealCount, setMealCount] = useState(4);
-
   const hasPlan = !!basePlan?.calories;
 
-  // حالة الـ Modal للبدائل
   const [altState, setAltState] = useState({
     open: false,
     mealKey: null,
@@ -157,7 +154,6 @@ export default function MealGenerator({ userName, basePlan }) {
     foods: [],
     loading: false,
   });
-
   const loadDay = async () => {
     setLoadingDay(true);
     setLoadingMeal(null);
@@ -222,7 +218,6 @@ export default function MealGenerator({ userName, basePlan }) {
     setLoadingMeal(null);
   };
 
-  // فتح قائمة البدائل لصنف معيّن
   const openAlternatives = async (meal, item) => {
     if (!item || !meal) return;
 
@@ -236,10 +231,10 @@ export default function MealGenerator({ userName, basePlan }) {
     });
 
     try {
-        const params = new URLSearchParams({
-            slot: item.slot,
-            currentKey: item.foodKey,
-          }).toString();
+      const params = new URLSearchParams({
+        slot: item.slot,
+        currentKey: item.foodKey,
+      }).toString();
 
       const res = await fetch(
         `/api/premium/generate-meals?${params}`,
@@ -271,7 +266,6 @@ export default function MealGenerator({ userName, basePlan }) {
     }
   };
 
-  // تطبيق بديل جديد على الصنف
   const applyAlternative = (food) => {
     if (!food || !meals || !meals.length) {
       setAltState({
@@ -333,21 +327,22 @@ export default function MealGenerator({ userName, basePlan }) {
       const kcals =
         totals.protein * 4 + totals.carbs * 4 + totals.fat * 9;
 
-        const newMeal = {
-            ...meal,
-            items: newItems,
-            name: newItems.map((i) => i.name).join(" + "),
-            amount: newItems.map((i) => i.amountText).join(" + "),
-            protein: Math.round(totals.protein),
-            carbs: Math.round(totals.carbs),
-            fat: Math.round(totals.fat),
-            kcals: Math.round(kcals),
-          
-            targetKcals: meal.targetKcals,
-            targetProtein: meal.targetProtein,
-            targetCarbs: meal.targetCarbs,
-            targetFat: meal.targetFat,
-          };
+      const newMeal = {
+        ...meal,
+        items: newItems,
+        name: newItems.map((i) => i.name).join(" + "),
+        amount: newItems.map((i) => i.amountText).join(" + "),
+        protein: Math.round(totals.protein),
+        carbs: Math.round(totals.carbs),
+        fat: Math.round(totals.fat),
+        kcals: Math.round(kcals),
+
+        // تبقى نفس الأهداف
+        targetKcals: meal.targetKcals,
+        targetProtein: meal.targetProtein,
+        targetCarbs: meal.targetCarbs,
+        targetFat: meal.targetFat,
+      };
 
       const nextMeals = [...prevMeals];
       nextMeals[idx] = newMeal;
@@ -366,7 +361,6 @@ export default function MealGenerator({ userName, basePlan }) {
       loading: false,
     });
   };
-
   return (
     <div
       className="min-h-screen bg-[#020617] text-gray-100"
@@ -485,9 +479,8 @@ export default function MealGenerator({ userName, basePlan }) {
             </div>
           </div>
         </section>
-
-        {/* بطاقات الوجبات */}
-        <section className="grid md:grid-cols-2 gap-5">
+                {/* بطاقات الوجبات */}
+                <section className="grid md:grid-cols-2 gap-5">
           {(!meals || !meals.length) && (
             <div className="md:col-span-2 text-center text-sm text-gray-400 border border-dashed border-gray-700 rounded-2xl p-6">
               👈 اضغط على{" "}
@@ -517,7 +510,7 @@ export default function MealGenerator({ userName, basePlan }) {
                   <Sparkles className="w-5 h-5 text-yellow-400" />
                 </div>
 
-                {/* أسماء الأصناف (قابلة للضغط لاختيار بدائل) */}
+                {/* أسماء الأصناف */}
                 {meal.items && meal.items.length ? (
                   <div className="text-sm text-yellow-200 font-semibold flex flex-wrap items-center gap-1">
                     {meal.items.map((item, idx) => (
@@ -541,15 +534,22 @@ export default function MealGenerator({ userName, basePlan }) {
                   </div>
                 )}
 
-                <div className="text-[11px] text-gray-300">
-                  الكمية المقترحة:{" "}
-                  {meal.items && meal.items.length
-                    ? meal.items
-                        .map((item) => item.amountText)
-                        .join(" + ")
-                    : meal.amount}
+                {/* الكمية المقترحة */}
+                <div className="grid grid-cols-3 gap-3 text-[11px] mt-2">
+                  {meal.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-black/30 border border-gray-700 rounded-lg p-2"
+                    >
+                      <div className="text-yellow-300 font-semibold text-xs mb-1">
+                        {item.name}
+                      </div>
+                      <div className="text-gray-300">{item.amountText}</div>
+                    </div>
+                  ))}
                 </div>
 
+                {/* الماكروز */}
                 <div className="grid grid-cols-4 gap-2 text-[11px] mt-2">
                   <div className="bg-black/50 rounded-lg p-2 text-center">
                     <div className="text-gray-400">السعرات</div>
@@ -576,9 +576,7 @@ export default function MealGenerator({ userName, basePlan }) {
                   className="mt-3 w-full flex items-center justify-center gap-2 text-[11px] px-3 py-2 rounded-lg border border-yellow-500/60 text-yellow-300 hover:bg-yellow-500/10"
                 >
                   <RefreshCcw
-                    className={`w-4 h-4 ${
-                      loadingMeal === meal.key ? "animate-spin" : ""
-                    }`}
+                    className={`w-4 h-4 ${loadingMeal === meal.key ? "animate-spin" : ""}`}
                   />
                   {loadingMeal === meal.key
                     ? "جاري إعادة توليد هذه الوجبة…"
@@ -594,9 +592,7 @@ export default function MealGenerator({ userName, basePlan }) {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
           <div className="bg-[#020617] border border-yellow-500/40 rounded-2xl p-5 max-w-md w-full max-h-[80vh] overflow-y-auto text-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-white text-base">
-                اختر بديلًا للصنف
-              </h3>
+              <h3 className="font-bold text-white text-base">اختر بديلًا للصنف</h3>
               <button
                 onClick={() =>
                   setAltState({
@@ -615,9 +611,7 @@ export default function MealGenerator({ userName, basePlan }) {
             </div>
 
             {altState.loading && (
-              <div className="text-gray-300 text-xs">
-                جاري تحميل البدائل…
-              </div>
+              <div className="text-gray-300 text-xs">جاري تحميل البدائل…</div>
             )}
 
             {!altState.loading && !altState.foods.length && (
@@ -634,12 +628,10 @@ export default function MealGenerator({ userName, basePlan }) {
                   onClick={() => applyAlternative(food)}
                   className="w-full text-right border border-gray-700 hover:border-yellow-500/60 rounded-xl px-3 py-2 bg-black/40 text-xs text-gray-100"
                 >
-                  <div className="font-semibold text-yellow-200">
-                    {food.name}
-                  </div>
+                  <div className="font-semibold text-yellow-200">{food.name}</div>
                   <div className="text-[10px] text-gray-400">
-                    لكل {food.baseAmount} {food.unit}:{" "}
-                    P {food.protein}g / C {food.carbs}g / F {food.fat}g
+                    لكل {food.baseAmount} {food.unit}: P {food.protein}g / C{" "}
+                    {food.carbs}g / F {food.fat}g
                   </div>
                 </button>
               ))}
