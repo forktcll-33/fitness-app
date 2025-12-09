@@ -21,7 +21,7 @@ const ARABIC_LABEL = {
   snack: "سناك",
 };
 
-// ====== مكتبة مصادر الطعام (لكل 100 جم / 10 جم تقريبًا) ======
+// ====== مكتبة مصادر الطعام (لكل baseAmount) ======
 const PROTEIN_SOURCES = [
   {
     key: "chicken_breast",
@@ -229,12 +229,11 @@ const FAT_SOURCES = [
   },
 ];
 
-// ====== مساعدات بسيطة ======
+// ====== مساعدات ======
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// تقريب للأقرب 5 جم عشان الأرقام تكون منطقية
 function roundTo5(x) {
   if (!Number.isFinite(x)) return 0;
   return Math.max(5, Math.round(x / 5) * 5);
@@ -242,13 +241,22 @@ function roundTo5(x) {
 
 function safeBase(plan) {
   const kcal = Number(plan?.calories || 0);
+
   let protein = Number(plan?.protein || 0);
   let carbs = Number(plan?.carbs || 0);
   let fat = Number(plan?.fat || 0);
 
   if (!protein || !carbs || !fat) {
+    if (!kcal) {
+      // fallback افتراضي
+      return {
+        calories: 2000,
+        protein: 150,
+        carbs: 200,
+        fat: 60,
+      };
+    }
     // لو الماكروز ناقصة نستخدم توزيع تقريبي
-    // 30% بروتين، 45% كارب، 25% دهون
     const pCal = kcal * 0.3;
     const cCal = kcal * 0.45;
     const fCal = kcal * 0.25;
@@ -269,75 +277,95 @@ function buildMealForType(type, base, dist) {
   const ratio = dist[type] || 0;
   if (!ratio) return null;
 
-  const targetKcals = Math.round(base.calories * ratio);
+  // أهداف هذه الوجبة من الماكروز
   const targetProtein = base.protein * ratio;
   const targetCarbs = base.carbs * ratio;
   const targetFat = base.fat * ratio;
+  const targetKcals = Math.round(
+    targetProtein * 4 + targetCarbs * 4 + targetFat * 9
+  );
 
   const proteinFood = pickRandom(PROTEIN_SOURCES);
   const carbFood = pickRandom(CARB_SOURCES);
   const fatFood = pickRandom(FAT_SOURCES);
 
-  // نحسب الكمية المطلوبة لكل مصدر بناءً على الماكرو الأساسي له
+  // محتوى الماكروز لكل 1 جم من المصدر
+  const pP = proteinFood.protein / proteinFood.baseAmount;
+  const cP = proteinFood.carbs / proteinFood.baseAmount;
+  const fP = proteinFood.fat / proteinFood.baseAmount;
+
+  const pC = carbFood.protein / carbFood.baseAmount;
+  const cC = carbFood.carbs / carbFood.baseAmount;
+  const fC = carbFood.fat / carbFood.baseAmount;
+
+  const pF = fatFood.protein / fatFood.baseAmount;
+  const cF = fatFood.carbs / fatFood.baseAmount;
+  const fF = fatFood.fat / fatFood.baseAmount;
+
+  // حساب الكمية المطلوبة لكل مصدر بحيث تقرّب الهدف
   const gramsProtein =
-    proteinFood.protein > 0
-      ? roundTo5(
-          (targetProtein * 100) / (proteinFood.protein || 1)
-        )
-      : 0;
+    pP > 0 ? roundTo5(targetProtein / pP) : 0;
 
   const gramsCarb =
-    carbFood.carbs > 0
-      ? roundTo5((targetCarbs * 100) / (carbFood.carbs || 1))
-      : 0;
+    cC > 0 ? roundTo5(targetCarbs / cC) : 0;
 
   const gramsFat =
-    fatFood.fat > 0
-      ? roundTo5((targetFat * fatFood.baseAmount) / (fatFood.fat || 1))
-      : 0;
+    fF > 0 ? roundTo5(targetFat / fF) : 0;
 
-  // نرجع لوحدة القياس الافتراضية (مثلاً "حبة" بيض، "شريحة" خبز)
+  // تحويل الكمية إلى "وحدات" منطقية (بيض = حبة، خبز = شريحة، زيت = ملاعق...)
+  const proteinUnits =
+    proteinFood.unit === "حبة"
+      ? Math.max(1, Math.round(gramsProtein / proteinFood.baseAmount))
+      : gramsProtein;
+
+  const carbUnits =
+    carbFood.unit === "شريحة"
+      ? Math.max(1, Math.round(gramsCarb / carbFood.baseAmount))
+      : gramsCarb;
+
+  const fatUnitsRaw = gramsFat / fatFood.baseAmount;
+  const fatUnits =
+    fatFood.unit === "ملعقة صغيرة"
+      ? Math.max(1, Math.round(fatUnitsRaw))
+      : roundTo5(gramsFat);
+
   const portionProtein =
     proteinFood.unit === "حبة"
-      ? `${Math.max(1, Math.round(gramsProtein / proteinFood.baseAmount))} ${proteinFood.unit}`
-      : `${gramsProtein} ${proteinFood.unit}`;
+      ? `${proteinUnits} ${proteinFood.unit}`
+      : `${proteinUnits} ${proteinFood.unit}`;
 
   const portionCarb =
     carbFood.unit === "شريحة"
-      ? `${Math.max(1, Math.round(gramsCarb / carbFood.baseAmount))} ${carbFood.unit}`
-      : `${gramsCarb} ${carbFood.unit}`;
+      ? `${carbUnits} ${carbFood.unit}`
+      : `${carbUnits} ${carbFood.unit}`;
 
-  const portionFat = `${gramsFat / fatFood.baseAmount} ${fatFood.unit}`.replace(
-    ".",
-    ","
-  );
+  const portionFat =
+    fatFood.unit === "ملعقة صغيرة"
+      ? `${fatUnits} ${fatFood.unit}`
+      : `${fatUnits} ${fatFood.unit}`;
 
-  // حساب الماكروز الفعلية
-  const pFromProt =
-    (gramsProtein * proteinFood.protein) / 100 +
-    (gramsProtein * proteinFood.carbs) / 100 * 0; // نعتبر كارب بسيط جدًا من البروتين
-  const cFromProt =
-    (gramsProtein * proteinFood.carbs) / 100;
-  const fFromProt =
-    (gramsProtein * proteinFood.fat) / 100;
+  // حساب الماكروز الفعلية من هذه الكميات
+  const totalProtein =
+    Math.round(
+      gramsProtein * pP +
+        gramsCarb * pC +
+        (fatUnitsRaw * fatFood.baseAmount) * pF
+    ) || 0;
 
-  const pFromCarb =
-    (gramsCarb * carbFood.protein) / 100;
-  const cFromCarb =
-    (gramsCarb * carbFood.carbs) / 100;
-  const fFromCarb =
-    (gramsCarb * carbFood.fat) / 100;
+  const totalCarbs =
+    Math.round(
+      gramsProtein * cP +
+        gramsCarb * cC +
+        (fatUnitsRaw * fatFood.baseAmount) * cF
+    ) || 0;
 
-  const pFromFat =
-    (gramsFat / fatFood.baseAmount) * fatFood.protein;
-  const cFromFat =
-    (gramsFat / fatFood.baseAmount) * fatFood.carbs;
-  const fFromFat =
-    (gramsFat / fatFood.baseAmount) * fatFood.fat;
+  const totalFat =
+    Math.round(
+      gramsProtein * fP +
+        gramsCarb * fC +
+        (fatUnitsRaw * fatFood.baseAmount) * fF
+    ) || 0;
 
-  const totalProtein = Math.round(pFromProt + pFromCarb + pFromFat);
-  const totalCarbs = Math.round(cFromProt + cFromCarb + cFromFat);
-  const totalFat = Math.round(fFromProt + fFromCarb + fFromFat);
   const totalKcals = Math.round(
     totalProtein * 4 + totalCarbs * 4 + totalFat * 9
   );
@@ -416,7 +444,8 @@ export default async function handler(req, res) {
       }
     }
 
-    const { mealCount } = req.body || {};
+    const body = req.body || {};
+    const mealCount = body.mealCount;
 
     const { base, meals, summary } = buildDay(plan, mealCount);
 
