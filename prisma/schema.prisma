@@ -49,7 +49,8 @@ model User {
   startDate     DateTime?
 
   weightLogs WeightLog[]
-
+  
+    foodDays   FoodDay[]
   // الخطة المحسوبة
   plan Json?
 
@@ -128,4 +129,48 @@ model Wellness {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, date]) // سطر مهم: يمنع تكرار سجل لنفس اليوم
+}
+model FoodDay {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  dayNumber Int        // (1–7)
+  date      DateTime   // التاريخ الفعلي لليوم
+  meals     FoodMeal[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  User      User       @relation(fields: [userId], references: [id])
+}
+
+model FoodMeal {
+  id        Int          @id @default(autoincrement())
+  foodDayId Int
+  index     Int          // 1 أو 2 أو 3 أو 4
+
+  items     FoodMealItem[]
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  FoodDay   FoodDay       @relation(fields: [foodDayId], references: [id])
+}
+model FoodMealItem {
+  id        Int     @id @default(autoincrement())
+  mealId    Int
+
+  type      String  // "protein" | "carb" | "fat"
+  foodKey   String  // مثلاً chicken_breast
+  foodName  String  // الاسم العربي الظاهر للمستخدم
+  amount    String  // مثل "120 جم" أو "2 حبة"
+
+  kcals     Int
+  protein   Int
+  carbs     Int
+  fat       Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  FoodMeal  FoodMeal @relation(fields: [mealId], references: [id])
 }

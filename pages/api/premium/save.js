@@ -1,0 +1,64 @@
+// pages/api/save.js
+import prisma from "../../../lib/prisma";
+
+export default async function handler(req, res) {
+  try {
+    const { userId, date, mealIndex, food } = JSON.parse(req.body);
+
+    if (!userId || !date || mealIndex === undefined || !food)
+      return res.status(400).json({ error: "missing data" });
+
+    // 1) نجيب اليوم
+    let day = await prisma.foodDay.findFirst({
+      where: { userId, date },
+    });
+
+    if (!day) {
+      day = await prisma.foodDay.create({
+        data: { userId, date },
+      });
+    }
+
+    // 2) نجيب الوجبة
+    let meal = await prisma.foodDayMeal.findFirst({
+      where: { foodDayId: day.id, index: mealIndex },
+    });
+
+    if (!meal) {
+      meal = await prisma.foodDayMeal.create({
+        data: {
+          foodDayId: day.id,
+          index: mealIndex,
+        },
+      });
+    }
+
+    // 3) امسح العنصر القديم إذا موجود (نفس النوع)
+    await prisma.foodDayMealItem.deleteMany({
+      where: {
+        foodDayMealId: meal.id,
+        type: food.type,
+      },
+    });
+
+    // 4) أضف العنصر الجديد
+    await prisma.foodDayMealItem.create({
+      data: {
+        foodDayMealId: meal.id,
+        type: food.type,
+        name: food.name,
+        amount: food.amount,
+        unit: food.unit,
+        protein: food.protein,
+        carbs: food.carbs,
+        fat: food.fat,
+        kcals: food.kcals,
+      },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.log("SAVE ERROR:", e);
+    return res.status(500).json({ error: "server error" });
+  }
+}
