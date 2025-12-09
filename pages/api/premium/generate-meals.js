@@ -231,17 +231,23 @@ function pickRandom(arr) {
         ];
   
         best = {
-          key: type,
-          type: ARABIC_LABEL[type] || type,
-          name: `${pFood.name} + ${cFood.name} + ${fFood.name}`,
-          amount: `${portionP.text} + ${portionC.text} + ${portionF.text}`,
-          kcals,
-          protein: totalProtein,
-          carbs: totalCarbs,
-          fat: totalFat,
-          targetKcals,
-          items,
-        };
+            key: type,
+            type: ARABIC_LABEL[type] || type,
+            name: `${pFood.name} + ${cFood.name} + ${fFood.name}`,
+            amount: `${portionP.text} + ${portionC.text} + ${portionF.text}`,
+            kcals,
+            protein: totalProtein,
+            carbs: totalCarbs,
+            fat: totalFat,
+            
+            // مهم جداً – الهدف المطلوب للوجبة
+            targetKcals,
+            targetProtein,
+            targetCarbs,
+            targetFat,
+          
+            items,
+          };
       }
     }
   

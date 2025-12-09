@@ -333,16 +333,21 @@ export default function MealGenerator({ userName, basePlan }) {
       const kcals =
         totals.protein * 4 + totals.carbs * 4 + totals.fat * 9;
 
-      const newMeal = {
-        ...meal,
-        items: newItems,
-        name: newItems.map((i) => i.name).join(" + "),
-        amount: newItems.map((i) => i.amountText).join(" + "),
-        protein: Math.round(totals.protein),
-        carbs: Math.round(totals.carbs),
-        fat: Math.round(totals.fat),
-        kcals: Math.round(kcals),
-      };
+        const newMeal = {
+            ...meal,
+            items: newItems,
+            name: newItems.map((i) => i.name).join(" + "),
+            amount: newItems.map((i) => i.amountText).join(" + "),
+            protein: Math.round(totals.protein),
+            carbs: Math.round(totals.carbs),
+            fat: Math.round(totals.fat),
+            kcals: Math.round(kcals),
+          
+            targetKcals: meal.targetKcals,
+            targetProtein: meal.targetProtein,
+            targetCarbs: meal.targetCarbs,
+            targetFat: meal.targetFat,
+          };
 
       const nextMeals = [...prevMeals];
       nextMeals[idx] = newMeal;
