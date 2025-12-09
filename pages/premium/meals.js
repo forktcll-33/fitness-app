@@ -125,7 +125,8 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ mealsCount: mealCount }),
+        // ✅ نرسل mealCount بالاسم الصحيح
+        body: JSON.stringify({ mealCount }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -153,18 +154,16 @@ export default function MealGenerator({ userName, basePlan }) {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({ mealsCount: mealCount }),
+        // ✅ نفس الاسم هنا
+        body: JSON.stringify({ mealCount }),
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.meals)) {
-        const newMeal = data.meals.find((m) => m.key === key);
-        if (newMeal) {
-          const updated = meals.map((m) =>
-            m.key === key ? newMeal : m
-          );
-          setMeals(updated);
-          setSummary(calcSummary(updated, basePlan || data.basePlan));
-        }
+        // نستخدم الوجبات الجديدة لكن نطابق حسب key
+        const newMap = new Map(data.meals.map((m) => [m.key, m]));
+        const updated = meals.map((m) => newMap.get(m.key) || m);
+        setMeals(updated);
+        setSummary(calcSummary(updated, basePlan || data.basePlan));
       }
     } catch (e) {
       console.error("Regenerate meal failed:", e);
