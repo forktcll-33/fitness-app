@@ -611,10 +611,10 @@ export default function PremiumHome({ userName, basePlan }) {
 
               <div className="flex flex-col gap-2 text-xs">
                 <a
-                  href="/premium/meals"
+                  href="/premium/meal-builder"
                   className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/40 hover:bg-black/60 border border-gray-700"
                 >
-                  <span>مولّد الوجبات اليومي</span>
+                  <span> بدائل الوجبات الاحترافية</span>
                   <span className="text-yellow-300 text-[11px]">جديد 🔥</span>
                 </a>
 
@@ -716,7 +716,46 @@ export default function PremiumHome({ userName, basePlan }) {
             </div>
 
             {/* بدائل الوجبات */}
-            <MealSwapPro basePlan={basePlan} />
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+  <div className="flex items-center gap-3 mb-4">
+    <Utensils className="w-6 h-6 text-yellow-400" />
+    <div>
+      <h2 className="text-xl font-bold text-white">
+        جدول التغذية اليومي
+      </h2>
+      <p className="text-xs text-gray-300">
+        توزيع ثابت للسعرات والماكروز — التغيير يتم من صفحة بدائل الوجبات.
+      </p>
+    </div>
+  </div>
+
+  {!basePlan?.calories ? (
+    <div className="text-xs text-yellow-300">
+      لا توجد خطة غذائية محسوبة بعد.
+    </div>
+  ) : (
+    <div className="space-y-2 text-xs">
+      {[
+        { label: "فطور", ratio: 0.25 },
+        { label: "غداء", ratio: 0.4 },
+        { label: "عشاء", ratio: 0.25 },
+        { label: "سناك", ratio: 0.1 },
+      ].map((meal) => (
+        <div
+          key={meal.label}
+          className="flex justify-between items-center bg-black/40 border border-gray-700 rounded-lg px-3 py-2"
+        >
+          <span className="font-semibold text-gray-100">
+            {meal.label}
+          </span>
+          <span className="text-yellow-300 font-semibold">
+            {Math.round(basePlan.calories * meal.ratio)} كالوري
+          </span>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
           </section>
 
           {/* =================== خطة تدريب + مشتريات + دعم + هدايا =================== */}
