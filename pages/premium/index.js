@@ -767,33 +767,8 @@ export default function PremiumHome({ userName, basePlan }) {
   )}
 </div>
 
-  {!basePlan?.calories ? (
-    <div className="text-xs text-yellow-300">
-      لا توجد خطة غذائية محسوبة بعد.
-    </div>
-  ) : (
-    <div className="space-y-2 text-xs">
-      {[
-        { label: "فطور", ratio: 0.25 },
-        { label: "غداء", ratio: 0.4 },
-        { label: "عشاء", ratio: 0.25 },
-        { label: "سناك", ratio: 0.1 },
-      ].map((meal) => (
-        <div
-          key={meal.label}
-          className="flex justify-between items-center bg-black/40 border border-gray-700 rounded-lg px-3 py-2"
-        >
-          <span className="font-semibold text-gray-100">
-            {meal.label}
-          </span>
-          <span className="text-yellow-300 font-semibold">
-            {Math.round(basePlan.calories * meal.ratio)} كالوري
-          </span>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+  
+      
           </section>
 
           {/* =================== خطة تدريب + مشتريات + دعم + هدايا =================== */}
