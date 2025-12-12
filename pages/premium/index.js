@@ -1,7 +1,6 @@
 // pages/premium/index.js
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
-import { useEffect, useState } from "react";
 import {
   Crown,
   CheckCircle2,
@@ -14,7 +13,7 @@ import {
   Footprints,
   MoonStar,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // =====================================
 // SSR — التحقق من المستخدم والخطة
