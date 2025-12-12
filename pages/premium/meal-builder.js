@@ -191,7 +191,9 @@ export default function MealBuilder({ userId, userName, plan }) {
 
       {/* الوجبات */}
       <div className="mt-6 space-y-4">
-        {meals.map((meal, idx) => (
+      {Array.from({ length: mealCount }).map((_, idx) => {
+  const meal = meals[idx] || {};
+  return (
           <div key={idx} className="border border-yellow-500/40 rounded-xl p-4 bg-black/40">
             <h2 className="font-bold text-yellow-300">الوجبة {idx + 1}</h2>
 
@@ -217,7 +219,8 @@ export default function MealBuilder({ userId, userName, plan }) {
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* المودال */}
