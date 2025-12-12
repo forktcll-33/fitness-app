@@ -1,6 +1,7 @@
 // pages/premium/index.js
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
+import { useEffect, useState } from "react";
 import {
   Crown,
   CheckCircle2,
@@ -69,6 +70,7 @@ export async function getServerSideProps({ req }) {
 
     return {
       props: {
+        userId: user.id,
         userName: user.name || "FitLife Member",
         basePlan,
       },
@@ -438,7 +440,26 @@ function buildWeeklyPlanPro(basePlan) {
    ============= صفحة Premium =================
    ============================================ */
 export default function PremiumHome({ userName, basePlan }) {
-  const weeklyPlan = buildWeeklyPlanPro(basePlan);
+  
+    const [todayMeals, setTodayMeals] = useState([]);
+    const [mealCount, setMealCount] = useState(0);
+    
+    useEffect(() => {
+      async function loadToday() {
+        try {
+          const res = await fetch(`/api/meal/today?userId=${userId}`);
+          const data = await res.json();
+    
+          setTodayMeals(data.meals || []);
+          setMealCount(data.mealCount || 0);
+        } catch (e) {
+          console.log(e);
+        }
+      }
+    
+      loadToday();
+    }, []);
+    const weeklyPlan = buildWeeklyPlanPro(basePlan);
 
   const totalCals = basePlan?.calories || 0;
   const protein = basePlan?.protein || 0;
@@ -717,58 +738,44 @@ export default function PremiumHome({ userName, basePlan }) {
 
             {/* بدائل الوجبات */}
             {/* جدول التغذية اليومي */}
-<div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
+            <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
   <h2 className="text-xl font-bold text-white mb-2">
-    جدول التغذية اليومي
+    جدول التغذية اليومي (اليوم)
   </h2>
 
   <p className="text-xs text-gray-400 mb-4">
-    توزيع ثابت للسعرات والماكروز — التعديل يتم من صفحة بدائل الوجبات الاحترافية
+    يتم تحديثه تلقائيًا حسب اختياراتك في بدائل الوجبات
   </p>
 
-  {basePlan?.calories ? (
-    <div className="space-y-3 text-sm">
-      {[
-        { name: "الوجبة الأولى", ratio: 0.25 },
-        { name: "الوجبة الثانية", ratio: 0.4 },
-        { name: "الوجبة الثالثة", ratio: 0.25 },
-        { name: "الوجبة الرابعة", ratio: 0.1 },
-      ].map((meal, i) => {
-        const kcal = Math.round(basePlan.calories * meal.ratio);
-        const protein = Math.round(basePlan.protein * meal.ratio);
-        const carbs = Math.round(basePlan.carbs * meal.ratio);
-        const fat = Math.round(basePlan.fat * meal.ratio);
-
-        return (
-          <div
-            key={i}
-            className="bg-black/40 border border-gray-700 rounded-xl px-4 py-3"
-          >
-            <div className="flex justify-between mb-1">
-              <span className="font-semibold text-gray-100">
-                {meal.name}
-              </span>
-              <span className="text-yellow-300 font-bold">
-                {kcal} كالوري
-              </span>
-            </div>
-
-            <div className="text-xs text-gray-300">
-              بروتين: {protein} جم • كارب: {carbs} جم • دهون: {fat} جم
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  ) : (
+  {mealCount === 0 ? (
     <p className="text-xs text-yellow-300">
-      لا توجد خطة غذائية محسوبة بعد.
+      لم يتم إعداد وجبات اليوم بعد
     </p>
+  ) : (
+    <div className="space-y-3 text-sm">
+      {todayMeals.map((meal, i) => (
+        <div
+          key={i}
+          className="bg-black/40 border border-gray-700 rounded-xl px-4 py-3"
+        >
+          <div className="flex justify-between mb-1">
+            <span className="font-semibold text-gray-100">
+              الوجبة {i + 1}
+            </span>
+            <span className="text-yellow-300 font-bold">
+              {meal.kcals} كالوري
+            </span>
+          </div>
+
+          <div className="text-xs text-gray-300">
+            بروتين: {meal.protein} جم • كارب: {meal.carbs} جم • دهون: {meal.fat} جم
+          </div>
+        </div>
+      ))}
+    </div>   
   )}
 </div>
-
-  
-      
+    
           </section>
 
           {/* =================== خطة تدريب + مشتريات + دعم + هدايا =================== */}

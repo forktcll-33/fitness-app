@@ -1,4 +1,3 @@
-// pages/api/save.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
@@ -8,18 +7,20 @@ export default async function handler(req, res) {
     if (!userId || !date || mealIndex === undefined || !food)
       return res.status(400).json({ error: "missing data" });
 
-    // 1) نجيب اليوم
+    const uid = Number(userId);
+
+    // 1) جلب اليوم
     let day = await prisma.foodDay.findFirst({
-      where: { userId, date },
+      where: { userId: uid, date },
     });
 
     if (!day) {
       day = await prisma.foodDay.create({
-        data: { userId, date },
+        data: { userId: uid, date },
       });
     }
 
-    // 2) نجيب الوجبة
+    // 2) جلب الوجبة
     let meal = await prisma.foodDayMeal.findFirst({
       where: { foodDayId: day.id, index: mealIndex },
     });
@@ -33,7 +34,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3) امسح العنصر القديم إذا موجود (نفس النوع)
+    // 3) حذف العنصر السابق من نفس النوع
     await prisma.foodDayMealItem.deleteMany({
       where: {
         foodDayMealId: meal.id,
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
       },
     });
 
-    // 4) أضف العنصر الجديد
+    // 4) حفظ العنصر الجديد
     await prisma.foodDayMealItem.create({
       data: {
         foodDayMealId: meal.id,
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    console.log("SAVE ERROR:", e);
+    console.error("SAVE ERROR:", e);
     return res.status(500).json({ error: "server error" });
   }
 }

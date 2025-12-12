@@ -1,4 +1,3 @@
-// pages/api/get-day.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
@@ -8,49 +7,52 @@ export default async function handler(req, res) {
     if (!userId || !date)
       return res.status(400).json({ error: "missing data" });
 
-    // 1) ابحث عن اليوم
+    const uid = Number(userId);
+
+    // 1) جلب اليوم
     let day = await prisma.foodDay.findFirst({
-      where: { userId, date },
+      where: { userId: uid, date },
       include: {
         meals: {
           orderBy: { index: "asc" },
-          include: {
-            items: true,
-          },
+          include: { items: true },
         },
       },
     });
 
-    // لو ما فيه → ننشئ يوم جديد
+    // إنشاء اليوم إذا غير موجود
     if (!day) {
       day = await prisma.foodDay.create({
-        data: {
-          userId,
-          date,
-        },
+        data: { userId: uid, date },
       });
     }
 
-    // 2) نتأكد أن عدد الوجبات مضبوط
+    // 2) جلب الوجبات
     let meals = await prisma.foodDayMeal.findMany({
       where: { foodDayId: day.id },
       orderBy: { index: "asc" },
       include: { items: true },
     });
 
+    // 3) ضبطبط عدد الوجبات
     if (meals.length !== mealCount) {
-      // احذف القديم
+      // حذف العناصر أولاً
+      await prisma.foodDayMealItem.deleteMany({
+        where: { foodDayMeal: { foodDayId: day.id } },
+      });
+
+      // حذف الوجبات
       await prisma.foodDayMeal.deleteMany({
         where: { foodDayId: day.id },
       });
 
-      // أنشئ الوجبات الجديدة
-      const createData = Array.from({ length: mealCount }).map((_, idx) => ({
-        foodDayId: day.id,
-        index: idx,
-      }));
-
-      await prisma.foodDayMeal.createMany({ data: createData });
+      // إنشاء وجبات جديدة
+      await prisma.foodDayMeal.createMany({
+        data: Array.from({ length: mealCount }).map((_, i) => ({
+          foodDayId: day.id,
+          index: i,
+        })),
+      });
 
       meals = await prisma.foodDayMeal.findMany({
         where: { foodDayId: day.id },
@@ -59,7 +61,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // صياغة الشكل النهائي للوجبات
+    // 4) إخراج منسق
     const formatted = meals.map((meal) => {
       const protein = meal.items.find((i) => i.type === "protein") || null;
       const carbs = meal.items.find((i) => i.type === "carbs") || null;
@@ -75,7 +77,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, meals: formatted });
   } catch (e) {
-    console.log("GET DAY ERROR:", e);
+    console.error("GET DAY ERROR:", e);
     return res.status(500).json({ error: "server error" });
   }
 }

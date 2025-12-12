@@ -88,6 +88,13 @@ export default function MealBuilder({ userId, userName, plan }) {
     if (selectedDate) loadMeals();
   }, [selectedDate, mealCount]);
 
+  useEffect(() => {
+    if (!selectedDate) {
+      const today = new Date().toISOString().slice(0, 10);
+      setSelectedDate(today);
+    }
+  }, []);
+
   const loadMeals = async () => {
     const res = await fetch("/api/meal/get-day", {
       method: "POST",
