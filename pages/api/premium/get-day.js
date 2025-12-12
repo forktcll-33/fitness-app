@@ -2,16 +2,20 @@ import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
   try {
-    const { userId, date, mealCount } = JSON.parse(req.body);
+    const { userId, dayKey, mealCount } = JSON.parse(req.body);
 
-    if (!userId || !date)
+    if (!userId || !dayKey || !mealCount) {
       return res.status(400).json({ error: "missing data" });
+    }
 
     const uid = Number(userId);
 
-    // 1) جلب اليوم
+    // 1) جلب اليوم حسب dayKey
     let day = await prisma.foodDay.findFirst({
-      where: { userId: uid, date },
+      where: {
+        userId: uid,
+        dayKey,
+      },
       include: {
         meals: {
           orderBy: { index: "asc" },
@@ -23,7 +27,10 @@ export default async function handler(req, res) {
     // إنشاء اليوم إذا غير موجود
     if (!day) {
       day = await prisma.foodDay.create({
-        data: { userId: uid, date },
+        data: {
+          userId: uid,
+          dayKey,
+        },
       });
     }
 
@@ -34,9 +41,9 @@ export default async function handler(req, res) {
       include: { items: true },
     });
 
-    // 3) ضبطبط عدد الوجبات
+    // 3) ضبط عدد الوجبات
     if (meals.length !== mealCount) {
-      // حذف العناصر أولاً
+      // حذف العناصر
       await prisma.foodDayMealItem.deleteMany({
         where: { foodDayMeal: { foodDayId: day.id } },
       });

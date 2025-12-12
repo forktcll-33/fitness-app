@@ -3,6 +3,9 @@ import { useState, useEffect } from "react";
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
 
+/* =======================
+   SSR
+======================= */
 export async function getServerSideProps({ req }) {
   const cookie = req.headers.cookie || "";
   const token = cookie
@@ -13,12 +16,10 @@ export async function getServerSideProps({ req }) {
   if (!token)
     return { redirect: { destination: "/login", permanent: false } };
 
-  let user = null;
-
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: Number(payload.id) },
       select: {
         id: true,
@@ -28,10 +29,7 @@ export async function getServerSideProps({ req }) {
       },
     });
 
-    if (!user)
-      return { redirect: { destination: "/login", permanent: false } };
-
-    if (user.subscriptionTier !== "premium") {
+    if (!user || user.subscriptionTier !== "premium") {
       return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
@@ -54,6 +52,19 @@ export async function getServerSideProps({ req }) {
     return { redirect: { destination: "/login", permanent: false } };
   }
 }
+
+/* =======================
+   ثوابت
+======================= */
+const DAYS = [
+  { key: "sat", label: "السبت" },
+  { key: "sun", label: "الأحد" },
+  { key: "mon", label: "الاثنين" },
+  { key: "tue", label: "الثلاثاء" },
+  { key: "wed", label: "الأربعاء" },
+  { key: "thu", label: "الخميس" },
+  { key: "fri", label: "الجمعة" },
+];
 
 const FOOD_LIBRARY = {
   protein: [
@@ -78,61 +89,51 @@ const FOOD_LIBRARY = {
   ],
 };
 
+/* =======================
+   الصفحة
+======================= */
 export default function MealBuilder({ userId, userName, plan }) {
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDay, setSelectedDay] = useState("sat");
   const [mealCount, setMealCount] = useState(4);
   const [meals, setMeals] = useState([]);
   const [modal, setModal] = useState({ open: false, mealIndex: null, macro: null });
 
   useEffect(() => {
-    if (selectedDate) loadMeals();
-  }, [selectedDate, mealCount]);
-
-  useEffect(() => {
-    if (!selectedDate) {
-      const today = new Date().toISOString().slice(0, 10);
-      setSelectedDate(today);
-    }
-  }, []);
+    loadMeals();
+  }, [selectedDay, mealCount]);
 
   const loadMeals = async () => {
     const res = await fetch("/api/meal/get-day", {
       method: "POST",
-      body: JSON.stringify({ userId, date: selectedDate, mealCount }),
+      body: JSON.stringify({
+        userId,
+        dayKey: selectedDay,
+        mealCount,
+      }),
     });
 
     const data = await res.json();
     setMeals(data.meals || []);
   };
 
-  const openMacroModal = (idx, macro) => {
-    setModal({ open: true, mealIndex: idx, macro });
-  };
-
   const chooseFood = async (food) => {
     const idx = modal.mealIndex;
     const macro = modal.macro;
+
     const baseKcal = plan.calories / mealCount;
-
-    // حساب الكمية المناسبة
     const perBase = food.protein * 4 + food.carbs * 4 + food.fat * 9;
-    let factor = baseKcal / perBase;
-
-    if (factor < 0.4) factor = 0.4;
-    if (factor > 3) factor = 3;
-
-    const amount = Math.round(food.base * factor);
+    let factor = Math.min(Math.max(baseKcal / perBase, 0.4), 3);
 
     await fetch("/api/meal/save", {
       method: "POST",
       body: JSON.stringify({
         userId,
-        date: selectedDate,
+        dayKey: selectedDay,
         mealIndex: idx,
         food: {
           type: macro,
           name: food.name,
-          amount,
+          amount: Math.round(food.base * factor),
           unit: food.unit,
           protein: Math.round(food.protein * factor),
           carbs: Math.round(food.carbs * factor),
@@ -157,15 +158,26 @@ export default function MealBuilder({ userId, userName, plan }) {
       <h1 className="mt-4 text-2xl font-bold">بدائل الوجبات الاحترافية</h1>
       <p className="text-gray-400 text-sm">مرحباً {userName}</p>
 
-      {/* اختيار اليوم */}
-      <div className="mt-6 flex gap-3">
-        <input
-          type="date"
-          className="px-3 py-2 bg-black/40 border border-gray-700 rounded-lg"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        />
+      {/* أيام الأسبوع */}
+      <div className="mt-6 flex flex-wrap gap-2">
+        {DAYS.map((d) => (
+          <button
+            key={d.key}
+            onClick={() => setSelectedDay(d.key)}
+            className={
+              "px-4 py-2 rounded-xl text-sm font-semibold " +
+              (selectedDay === d.key
+                ? "bg-yellow-500 text-black"
+                : "bg-black/40 text-gray-300 border border-gray-700")
+            }
+          >
+            {d.label}
+          </button>
+        ))}
+      </div>
 
+      {/* عدد الوجبات */}
+      <div className="mt-4">
         <select
           value={mealCount}
           onChange={(e) => setMealCount(Number(e.target.value))}
@@ -187,29 +199,19 @@ export default function MealBuilder({ userId, userName, plan }) {
               {["protein", "carbs", "fat"].map((macro) => (
                 <div
                   key={macro}
-                  onClick={() => openMacroModal(idx, macro)}
-                  className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
+                  onClick={() => setModal({ open: true, mealIndex: idx, macro })}
+                  className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700"
                 >
-                  <div className="text-gray-300 text-xs">
-                    {macro === "protein"
-                      ? "بروتين"
-                      : macro === "carbs"
-                      ? "كارب"
-                      : "دهون"}
+                  <div className="text-xs text-gray-300">
+                    {macro === "protein" ? "بروتين" : macro === "carbs" ? "كارب" : "دهون"}
                   </div>
 
                   {meal[macro] ? (
                     <div className="text-yellow-300 text-sm font-bold mt-1">
-                      {meal[macro].name}  
-                      <br />
-                      <span className="text-gray-400 text-xs">
-                        {meal[macro].amount} {meal[macro].unit}
-                      </span>
+                      {meal[macro].name}
                     </div>
                   ) : (
-                    <div className="text-gray-600 text-xs mt-1">
-                      اضغط للاختيار
-                    </div>
+                    <div className="text-gray-600 text-xs mt-1">اضغط للاختيار</div>
                   )}
                 </div>
               ))}
@@ -221,16 +223,14 @@ export default function MealBuilder({ userId, userName, plan }) {
       {/* المودال */}
       {modal.open && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-[#0f172a] p-6 rounded-xl w-96 max-h-[80vh] overflow-y-auto border border-yellow-500/30">
-            <h3 className="text-lg font-bold text-yellow-300 mb-3">
-              اختر {modal.macro === "protein" ? "بروتين" : modal.macro === "carbs" ? "كارب" : "دهون"}
-            </h3>
+          <div className="bg-[#0f172a] p-6 rounded-xl w-96 border border-yellow-500/30">
+            <h3 className="text-lg font-bold text-yellow-300 mb-3">اختر عنصر</h3>
 
             {FOOD_LIBRARY[modal.macro].map((item) => (
               <div
                 key={item.key}
                 onClick={() => chooseFood(item)}
-                className="p-3 rounded-lg bg-black/40 border border-gray-700 mb-2 cursor-pointer hover:bg-black/60"
+                className="p-3 rounded-lg bg-black/40 border border-gray-700 mb-2 cursor-pointer"
               >
                 {item.name}
               </div>

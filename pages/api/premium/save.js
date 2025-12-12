@@ -2,27 +2,42 @@ import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
   try {
-    const { userId, date, mealIndex, food } = JSON.parse(req.body);
+    const { userId, dayKey, mealIndex, food } = JSON.parse(req.body);
 
-    if (!userId || !date || mealIndex === undefined || !food)
+    if (
+      !userId ||
+      !dayKey ||
+      mealIndex === undefined ||
+      !food
+    ) {
       return res.status(400).json({ error: "missing data" });
+    }
 
     const uid = Number(userId);
 
     // 1) جلب اليوم
     let day = await prisma.foodDay.findFirst({
-      where: { userId: uid, date },
+      where: {
+        userId: uid,
+        dayKey,
+      },
     });
 
     if (!day) {
       day = await prisma.foodDay.create({
-        data: { userId: uid, date },
+        data: {
+          userId: uid,
+          dayKey,
+        },
       });
     }
 
     // 2) جلب الوجبة
     let meal = await prisma.foodDayMeal.findFirst({
-      where: { foodDayId: day.id, index: mealIndex },
+      where: {
+        foodDayId: day.id,
+        index: mealIndex,
+      },
     });
 
     if (!meal) {
