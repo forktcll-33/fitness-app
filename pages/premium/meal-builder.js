@@ -238,7 +238,7 @@ export default function MealBuilder({ userId, userName, plan }) {
               </h2>
   
               <div className="grid grid-cols-3 gap-3 text-center">
-  {["protein", "carb", "fat"].map((macro) => (
+  {["protein", "carbs", "fat"].map((macro) => (
     <div
       key={macro}
       onClick={() =>
@@ -249,7 +249,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       <div className="text-xs text-gray-300">
         {macro === "protein"
           ? "بروتين"
-          : macro === "carb"
+          : macro === "carbs"
           ? "كارب"
           : "دهون"}
       </div>
