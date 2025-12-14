@@ -1,4 +1,3 @@
-// pages/premium/meal-builder.js
 import { useState, useEffect } from "react";
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
@@ -125,6 +124,7 @@ export default function MealBuilder({ userId, userName, plan }) {
   }, [selectedDay, mealCount]);
 
   const loadMeals = async () => {
+    // نستخدم /api/meal/get-day الذي يفترض أنه يعتمد على نفس منطق الخطة الافتراضية
     const res = await fetch("/api/meal/get-day", {
       method: "POST",
       headers: {
@@ -156,7 +156,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     const payload = {
       userId,
       dayNumber: DAY_NUMBER_MAP[selectedDay],
-      mealIndex: modal.mealIndex, // 🌟 التعديل هنا: تم إزالة + 1 ليتوافق مع الفهرسة (0-3) في الخلفية
+      mealIndex: modal.mealIndex, 
       food: {
         type: modal.macro,
         name: food.name,
@@ -173,16 +173,23 @@ export default function MealBuilder({ userId, userName, plan }) {
       },
     };
 
-    await fetch("/api/meal/save", {
+    // إرسال طلب الحفظ
+    const saveRes = await fetch("/api/meal/save", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
-  
-    setModal({ open: false, mealIndex: null, macro: null });
-    await loadMeals(); // هذا يضمن تحديث الجدول بعد الحفظ
+
+    // إذا نجح الحفظ، نقوم بإعادة تحميل الوجبات لتحديث العرض
+    if (saveRes.ok) {
+        setModal({ open: false, mealIndex: null, macro: null });
+        await loadMeals(); 
+    } else {
+        alert("فشل في حفظ الصنف. يرجى المحاولة مرة أخرى.");
+        setModal({ open: false, mealIndex: null, macro: null });
+    }
   };
 
   return (
@@ -224,14 +231,11 @@ export default function MealBuilder({ userId, userName, plan }) {
       </div>
   
       {/* الوجبات */}
-      // pages/premium/meal-builder.js (الكتلة الجديدة التي يجب وضعها مكان القديمة)
-
-      {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
       {Array.from({ length: mealCount }).map((_, idx) => {
         const meal = meals.find(m => m.index === idx) || {}; 
         
-        // 🌟 دالة مساعدة للبحث عن صنف محدد داخل قائمة الـ items
+        // دالة مساعدة للبحث عن صنف محدد داخل قائمة الـ items
         const getItem = (type) => meal.items?.find(item => item.type === type);
     
         return (
@@ -251,7 +255,6 @@ export default function MealBuilder({ userId, userName, plan }) {
                 <div
                   key={macro}
                   onClick={() =>
-                    // يجب أن يكون mealIndex هو الفهرس الحالي (idx)
                     setModal({ open: true, mealIndex: idx, macro }) 
                   }
                   className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
@@ -266,9 +269,9 @@ export default function MealBuilder({ userId, userName, plan }) {
     
                   {item ? (
                     <div className="text-yellow-300 text-sm font-bold mt-1">
-                      {item.foodName} {/* عرض اسم الطعام المحفوظ */}
+                      {item.name} {/* استخدام item.name */}
                       <div className="text-gray-400 text-[10px] mt-1">
-                          {item.amount} {item.unit} {/* عرض الكمية والوحدة */}
+                          {item.amount} {item.unit} 
                       </div>
                     </div>
                   ) : (

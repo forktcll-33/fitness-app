@@ -1,4 +1,3 @@
-// pages/api/meal/today.js
 import prisma from "../../../lib/prisma";
 
 // دالة مساعدة لتحويل يوم النظام (0=الأحد.. 6=السبت) إلى ترقيم قاعدة البيانات (1-7)
@@ -12,7 +11,6 @@ const getDbDayNumber = () => {
 };
 
 // دالة مساعدة لحساب الخطة الافتراضية (4 وجبات)
-// هذه الدالة تعتمد على المنطق الذي أرسلته في index.js
 const calculateDefaultPlan = (basePlan) => {
   if (!basePlan?.calories) return [];
 
@@ -66,7 +64,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ mealCount: 0, meals: [] });
     }
 
-
+    const defaultPlan = calculateDefaultPlan(basePlan); // 🌟 نحسب الخطة الافتراضية هنا
     const todayDbNumber = getDbDayNumber();
     
     // 2) محاولة جلب الوجبات المحفوظة/المُخصصة
@@ -87,27 +85,44 @@ export default async function handler(req, res) {
 
     // 3) إذا تم العثور على وجبات مخصصة: قم بتجميعها وإرجاعها
     if (day && day.meals.length > 0) {
+      
       const meals = day.meals.map((meal) => {
-        const totals = meal.items.reduce(
-          (acc, item) => {
-            acc.kcals += item.kcals || 0;
-            acc.protein += item.protein || 0;
-            acc.carbs += item.carbs || 0;
-            acc.fat += item.fat || 0;
-            return acc;
-          },
-          { kcals: 0, protein: 0, carbs: 0, fat: 0 }
-        );
+        // إذا كان لدى الوجبة أصناف محفوظة، نجمع الإجماليات
+        if (meal.items && meal.items.length > 0) {
+            const totals = meal.items.reduce(
+                (acc, item) => {
+                    acc.kcals += item.kcals || 0;
+                    acc.protein += item.protein || 0;
+                    acc.carbs += item.carbs || 0;
+                    acc.fat += item.fat || 0;
+                    return acc;
+                },
+                { kcals: 0, protein: 0, carbs: 0, fat: 0 }
+            );
 
+            return {
+                index: meal.index,
+                items: meal.items.map(item => ({ 
+                    type: item.type, 
+                    name: item.foodName, 
+                    amount: item.amount, 
+                    unit: item.unit, // للتأكد من وجود الوحدة
+                    kcals: item.kcals 
+                })),
+                ...totals,
+            };
+        }
+        
+        // 🌟 الإصلاح: إذا لم يكن هناك أصناف محفوظة لهذه الوجبة، نستخدم الخطة الافتراضية
+        const defaultMealData = defaultPlan.find(d => d.index === meal.index) || {};
+        
         return {
-          index: meal.index,
-          items: meal.items.map(item => ({ 
-            type: item.type, 
-            name: item.foodName, 
-            amount: item.amount, 
-            kcals: item.kcals 
-          })),
-          ...totals,
+            index: meal.index,
+            items: [], // قائمة الأصناف فارغة لتمييزها
+            kcals: defaultMealData.kcals || 0,
+            protein: defaultMealData.protein || 0,
+            carbs: defaultMealData.carbs || 0,
+            fat: defaultMealData.fat || 0,
         };
       });
 
@@ -118,12 +133,10 @@ export default async function handler(req, res) {
     }
 
 
-    // 4) إذا لم يتم العثور على وجبات مخصصة: أعد الخطة الافتراضية (4 وجبات)
-    const defaultMeals = calculateDefaultPlan(basePlan);
-
+    // 4) إذا لم يتم العثور على أي وجبات مخصصة: أعد الخطة الافتراضية (4 وجبات)
     return res.status(200).json({
-        mealCount: defaultMeals.length,
-        meals: defaultMeals,
+        mealCount: defaultPlan.length,
+        meals: defaultPlan,
     });
 
   } catch (e) {
