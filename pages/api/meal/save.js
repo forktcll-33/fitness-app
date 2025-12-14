@@ -29,15 +29,19 @@ export default async function handler(req, res) {
     }
 
     // الوجبة
-    let meal = await prisma.foodMeal.findFirst({
-      where: { foodDayId: day.id, index: mealIndex },
-    });
-
-    if (!meal) {
-      meal = await prisma.foodMeal.create({
-        data: { foodDayId: day.id, index: mealIndex },
+    let meal = await prisma.foodMeal.upsert({
+        where: {
+          foodDayId_index: {
+            foodDayId: day.id,
+            index: mealIndex,
+          },
+        },
+        update: {},
+        create: {
+          foodDayId: day.id,
+          index: mealIndex,
+        },
       });
-    }
 
     // حذف القديم من نفس النوع
     await prisma.foodMealItem.deleteMany({
