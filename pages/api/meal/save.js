@@ -62,8 +62,8 @@ export default async function handler(req, res) {
       data: {
         mealId: meal.id,
         type: food.type,              // protein | carbs | fat
-        foodKey: food.name,
-        foodName: food.name,
+        foodKey: food.foodKey,        // 🔑 الإصلاح: استخدام foodKey القادم من الواجهة
+        foodName: food.foodName,      // ✅ استخدام foodName القادم من الواجهة
         amount: `${food.amount} ${food.unit}`,
         protein: Number(food.protein) || 0,
         carbs: Number(food.carbs) || 0,

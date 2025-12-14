@@ -160,10 +160,9 @@ export default function MealBuilder({ userId, userName, plan }) {
       mealIndex: modal.mealIndex, 
       food: {
         type: modal.macro,
-        // 🌟 الإصلاح 1: نستخدم foodName بدلاً من name ليتوافق مع العرض في الصفحات
-        foodName: food.name, 
+        foodName: food.name, // ✅ تصحيح وتوحيد الاسم
         
-        // 🌟 الإصلاح 2: نستخدم Math.min لتقييد الكمية المحسوبة بحد أقصى (5 أضعاف الكمية الأساسية)
+        // ✅ تقييد الكمية
         amount: Math.round(Math.min(food.base * factor, food.base * 5)), 
         unit: food.unit,
         
@@ -175,6 +174,7 @@ export default function MealBuilder({ userId, userName, plan }) {
           food.carbs * factor * 4 +
           food.fat * factor * 9
         ),
+        foodKey: food.key, // 🔑 الإصلاح الحاسم: إضافة foodKey
       },
     };
 
@@ -275,7 +275,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     
                   {item ? (
                     <div className="text-yellow-300 text-sm font-bold mt-1">
-                      {item.foodName} {/* ✅ استخدام foodName للعرض */}
+                      {item.foodName} 
                       <div className="text-gray-400 text-[10px] mt-1">
                           {item.amount} {item.unit} 
                       </div>
