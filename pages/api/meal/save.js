@@ -5,24 +5,23 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { userId, dayKey, mealIndex, food } = req.body;
-    if (!userId || !dayKey || mealIndex === undefined || !food)
-      return res.status(400).json({ error: "missing data" });
+    const { userId, dayNumber, mealIndex, food } = req.body;
+
+    // تحقق أساسي
+    if (
+      !userId ||
+      !dayNumber ||
+      mealIndex === undefined ||
+      !food ||
+      !["protein", "carbs", "fat"].includes(food.type)
+    ) {
+      return res.status(400).json({ error: "missing or invalid data" });
+    }
 
     const uid = Number(userId);
     const idx = Number(mealIndex);
 
-    const DAY_NUMBER_MAP = {
-      sat: 6, sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5,
-    };
-    const dayNumber = DAY_NUMBER_MAP[dayKey];
-    if (!dayNumber) return res.status(400).json({ error: "invalid dayKey" });
-
-    if (!["protein", "carbs", "fat"].includes(food.type)) {
-      return res.status(400).json({ error: "invalid food type" });
-    }
-
-    // اليوم
+    // 1) اليوم
     let day = await prisma.foodDay.findFirst({
       where: { userId: uid, dayNumber },
     });
@@ -33,18 +32,24 @@ export default async function handler(req, res) {
       });
     }
 
-    // الوجبة
+    // 2) الوجبة (مهمة: تعتمد على foodDayId + index فقط)
     let meal = await prisma.foodMeal.findFirst({
-      where: { foodDayId: day.id, index: idx },
+      where: {
+        foodDayId: day.id,
+        index: idx,
+      },
     });
 
     if (!meal) {
       meal = await prisma.foodMeal.create({
-        data: { foodDayId: day.id, index: idx },
+        data: {
+          foodDayId: day.id,
+          index: idx,
+        },
       });
     }
 
-    // حذف القديم من نفس النوع داخل نفس الوجبة فقط
+    // 3) حذف العنصر السابق من نفس النوع داخل نفس الوجبة فقط
     await prisma.foodMealItem.deleteMany({
       where: {
         mealId: meal.id,
@@ -52,11 +57,11 @@ export default async function handler(req, res) {
       },
     });
 
-    // إضافة الجديد
+    // 4) إضافة العنصر الجديد
     await prisma.foodMealItem.create({
       data: {
         mealId: meal.id,
-        type: food.type,
+        type: food.type,              // protein | carbs | fat
         foodKey: food.name,
         foodName: food.name,
         amount: `${food.amount} ${food.unit}`,

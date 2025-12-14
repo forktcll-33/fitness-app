@@ -5,26 +5,29 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { userId, dayKey, mealCount } = req.body;
-    if (!userId || !dayKey || !mealCount)
+    const { userId, dayNumber, mealCount } = req.body;
+
+    if (!userId || dayNumber === undefined || !mealCount) {
       return res.status(400).json({ error: "missing data" });
+    }
 
     const uid = Number(userId);
+    const desired = Number(mealCount);
 
-    const DAY_NUMBER_MAP = {
-      sat: 6, sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5,
-    };
-    const dayNumber = DAY_NUMBER_MAP[dayKey];
-    if (!dayNumber) return res.status(400).json({ error: "invalid dayKey" });
-
-    // 1) جلب/إنشاء اليوم
+    // 1) جلب أو إنشاء اليوم
     let day = await prisma.foodDay.findFirst({
-      where: { userId: uid, dayNumber },
+      where: {
+        userId: uid,
+        dayNumber: Number(dayNumber),
+      },
     });
 
     if (!day) {
       day = await prisma.foodDay.create({
-        data: { userId: uid, dayNumber },
+        data: {
+          userId: uid,
+          dayNumber: Number(dayNumber),
+        },
       });
     }
 
@@ -35,54 +38,56 @@ export default async function handler(req, res) {
       include: { items: true },
     });
 
-    // ✅ IMPORTANT: لا تمسح القديم إذا ناقص — فقط كمّل الناقص
-    const desired = Number(mealCount);
+    // 3) إنشاء الوجبات الناقصة فقط (بدون حذف القديمة)
+    const existingIndexes = new Set(meals.map((m) => m.index));
+    const toCreate = [];
 
-    // (A) إذا أقل من المطلوب: أنشئ الوجبات الناقصة فقط
-    if (meals.length < desired) {
-      const existingIndexes = new Set(meals.map((m) => m.index));
-      const toCreate = [];
-
-      for (let i = 0; i < desired; i++) {
-        if (!existingIndexes.has(i)) {
-          toCreate.push({ foodDayId: day.id, index: i });
-        }
-      }
-
-      if (toCreate.length) {
-        await prisma.foodMeal.createMany({ data: toCreate, skipDuplicates: true });
+    for (let i = 0; i < desired; i++) {
+      if (!existingIndexes.has(i)) {
+        toCreate.push({
+          foodDayId: day.id,
+          index: i,
+        });
       }
     }
 
-    // (B) إذا أكثر من المطلوب: احذف الزائد فقط (مع عناصره)
-    if (meals.length > desired) {
-      const extraMeals = meals.filter((m) => m.index >= desired);
+    if (toCreate.length) {
+      await prisma.foodMeal.createMany({
+        data: toCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    // 4) حذف الوجبات الزائدة فقط
+    const extraMeals = meals.filter((m) => m.index >= desired);
+    if (extraMeals.length) {
       const extraIds = extraMeals.map((m) => m.id);
 
-      if (extraIds.length) {
-        await prisma.foodMealItem.deleteMany({
-          where: { mealId: { in: extraIds } },
-        });
-        await prisma.foodMeal.deleteMany({
-          where: { id: { in: extraIds } },
-        });
-      }
+      await prisma.foodMealItem.deleteMany({
+        where: { mealId: { in: extraIds } },
+      });
+
+      await prisma.foodMeal.deleteMany({
+        where: { id: { in: extraIds } },
+      });
     }
 
-    // 3) إعادة جلب بعد التعديل
+    // 5) إعادة الجلب بعد التعديل
     meals = await prisma.foodMeal.findMany({
       where: { foodDayId: day.id },
       orderBy: { index: "asc" },
       include: { items: true },
     });
 
-    // 4) إخراج منسق
+    // 6) إخراج منسق للفرونت
     const formatted = meals
-      .filter((m) => m.index >= 0 && m.index < desired)
+      .filter((m) => m.index < desired)
       .map((meal) => ({
         index: meal.index,
         protein: meal.items.find((i) => i.type === "protein") || null,
-        carbs: meal.items.find((i) => i.type === "carbs") || null,
+        carbs: meal.items.find(
+          (i) => i.type === "carbs" || i.type === "carb"
+        ) || null,
         fat: meal.items.find((i) => i.type === "fat") || null,
       }));
 
