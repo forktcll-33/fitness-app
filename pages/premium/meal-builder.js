@@ -156,7 +156,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     const payload = {
       userId,
       dayNumber: DAY_NUMBER_MAP[selectedDay],
-      mealIndex: modal.mealIndex + 1,
+      mealIndex: modal.mealIndex, // 🌟 التعديل هنا: تم إزالة + 1 ليتوافق مع الفهرسة (0-3) في الخلفية
       food: {
         type: modal.macro,
         name: food.name,
@@ -182,7 +182,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     });
   
     setModal({ open: false, mealIndex: null, macro: null });
-    await loadMeals(); // ⭐ هذا اللي كان ناقص
+    await loadMeals(); // هذا يضمن تحديث الجدول بعد الحفظ
   };
 
   return (
@@ -226,7 +226,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
       {Array.from({ length: mealCount }).map((_, idx) => {
-  const meal = meals.find(m => m.index === idx + 1) || {};
+  const meal = meals.find(m => m.index === idx) || {}; // 🌟 ملاحظة: البحث أصبح عن الفهرس (idx) مباشرة
   
           return (
             <div
