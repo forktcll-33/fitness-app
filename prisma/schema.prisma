@@ -133,14 +133,17 @@ model Wellness {
 model FoodDay {
   id        Int       @id @default(autoincrement())
   userId    Int
-  dayNumber Int        // (1–7)
-  date      DateTime   // التاريخ الفعلي لليوم
+  dayNumber Int       // 1 = السبت ، 7 = الجمعة
+  date      DateTime? // اختياري (للاستخدام المستقبلي)
+
   meals     FoodMeal[]
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  User      User       @relation(fields: [userId], references: [id])
+  User      User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, dayNumber]) // ⭐ هذا مهم جدًا
 }
 
 model FoodMeal {

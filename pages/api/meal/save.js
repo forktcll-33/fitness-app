@@ -1,26 +1,32 @@
+// pages/api/meal/save.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).end();
-  }
+  if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { userId, dayKey, mealIndex, food } = req.body;
+    const { userId, dayNumber, mealIndex, food } = req.body;
 
-    if (!userId || !dayKey || mealIndex === undefined || !food) {
+    if (!userId || !dayNumber || mealIndex === undefined || !food) {
       return res.status(400).json({ error: "missing data" });
     }
 
     const uid = Number(userId);
 
     let day = await prisma.foodDay.findFirst({
-      where: { userId: uid, dayKey },
+      where: {
+        userId: uid,
+        dayNumber: Number(dayNumber),
+      },
     });
 
     if (!day) {
       day = await prisma.foodDay.create({
-        data: { userId: uid, dayKey },
+        data: {
+          userId: uid,
+          dayNumber: Number(dayNumber),
+          date: new Date(),
+        },
       });
     }
 

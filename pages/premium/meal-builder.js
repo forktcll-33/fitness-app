@@ -66,6 +66,16 @@ const DAYS = [
   { key: "fri", label: "الجمعة" },
 ];
 
+const DAY_NUMBER_MAP = {
+  sat: 6,
+  sun: 7,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+};
+
 const FOOD_LIBRARY = {
   protein: [
     { key: "chicken", name: "صدور دجاج", protein: 31, carbs: 0, fat: 3.6, base: 100, unit: "جم" },
@@ -122,7 +132,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       },
       body: JSON.stringify({
         userId,
-        dayKey: selectedDay,
+        dayNumber: DAY_NUMBER_MAP[selectedDay],
         mealCount,
       }),
     });
@@ -145,7 +155,7 @@ export default function MealBuilder({ userId, userName, plan }) {
   
     const payload = {
       userId,
-      dayKey: selectedDay,
+      dayNumber: DAY_NUMBER_MAP[selectedDay],
       mealIndex: modal.mealIndex,
       food: {
         type: modal.macro,
@@ -162,7 +172,7 @@ export default function MealBuilder({ userId, userName, plan }) {
         ),
       },
     };
-  
+
     await fetch("/api/meal/save", {
       method: "POST",
       headers: {
