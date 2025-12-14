@@ -744,7 +744,7 @@ function buildWeeklyPlanPro(basePlan) {
 
             {/* بدائل الوجبات */}
             {/* جدول التغذية اليومي */}
-            // الكود الذي يجب وضعه بدلاً من محتوى جدول التغذية اليومي
+            
 
             {/* جدول التغذية اليومي */}
             <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
