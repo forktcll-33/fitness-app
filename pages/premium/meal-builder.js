@@ -93,7 +93,7 @@ const FOOD_LIBRARY = {
     { key: "dates", name: "تمر", protein: 1, carbs: 18, fat: 0.1, base: 30, unit: "حبة" },
   ],
 
-  fats: [
+  fat: [
     { key: "olive_oil", name: "زيت زيتون", protein: 0, carbs: 0, fat: 5, base: 5, unit: "ملعقة صغيرة" },
     { key: "nuts", name: "مكسرات", protein: 2, carbs: 3, fat: 9, base: 10, unit: "جم" },
     { key: "pb", name: "زبدة فول سوداني", protein: 3.5, carbs: 3, fat: 8, base: 10, unit: "جم" },
@@ -122,7 +122,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       },
       body: JSON.stringify({
         userId,
-        date: selectedDate, // ✅ لازم اسمها date
+        dayKey: selectedDay,
         mealCount,
       }),
     });
@@ -145,7 +145,7 @@ export default function MealBuilder({ userId, userName, plan }) {
   
     const payload = {
       userId,
-      date: selectedDate,
+      dayKey: selectedDay,
       mealIndex: modal.mealIndex,
       food: {
         type: modal.macro,
