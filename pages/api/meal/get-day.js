@@ -4,17 +4,13 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { userId, dayKey, mealCount } = req.body;
-    if (!userId || !dayKey || !mealCount)
+    const { userId, dayNumber, mealCount } = req.body;
+
+    if (!userId || dayNumber === undefined || !mealCount) {
       return res.status(400).json({ error: "missing data" });
+    }
 
     const uid = Number(userId);
-
-    // تحويل اليوم إلى رقم
-    const DAY_NUMBER_MAP = {
-      sat: 6, sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5,
-    };
-    const dayNumber = DAY_NUMBER_MAP[dayKey];
 
     // جلب اليوم
     let day = await prisma.foodDay.findFirst({
@@ -43,7 +39,11 @@ export default async function handler(req, res) {
     // ضبط عدد الوجبات
     if (meals.length !== mealCount) {
       await prisma.foodMealItem.deleteMany({
-        where: { FoodMeal: { foodDayId: day.id } },
+        where: {
+          FoodMeal: {
+            foodDayId: day.id,
+          },
+        },
       });
 
       await prisma.foodMeal.deleteMany({
@@ -64,16 +64,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // إخراج منسق
+    // إخراج منسق (متوافق مع الواجهة)
     const formatted = meals.map((meal) => ({
-        index: meal.index,
-        protein: meal.items.find((i) => i.type === "protein") || null,
-        carbs:
-          meal.items.find((i) => i.type === "carbs") ||
-          meal.items.find((i) => i.type === "carb") ||
-          null,
-        fat: meal.items.find((i) => i.type === "fat") || null,
-      }));
+      index: meal.index,
+      protein: meal.items.find((i) => i.type === "protein") || null,
+      carbs: meal.items.find((i) => i.type === "carbs") || null,
+      fat: meal.items.find((i) => i.type === "fat") || null,
+    }));
 
     return res.status(200).json({ meals: formatted });
   } catch (e) {
