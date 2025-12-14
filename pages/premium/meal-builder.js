@@ -238,34 +238,34 @@ export default function MealBuilder({ userId, userName, plan }) {
               </h2>
   
               <div className="grid grid-cols-3 gap-3 text-center">
-                {["protein", "carbs", "fat"].map((macro) => (
-                  <div
-                    key={macro}
-                    onClick={() =>
-                      setModal({ open: true, mealIndex: idx, macro })
-                    }
-                    className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
-                  >
-                    <div className="text-xs text-gray-300">
-                      {macro === "protein"
-                        ? "بروتين"
-                        : macro === "carbs"
-                        ? "كارب"
-                        : "دهون"}
-                    </div>
-  
-                    {meal[macro] ? (
-                      <div className="text-yellow-300 text-sm font-bold mt-1">
-                        {meal[macro].name}
-                      </div>
-                    ) : (
-                      <div className="text-gray-600 text-xs mt-1">
-                        اضغط للاختيار
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+  {["protein", "carb", "fat"].map((macro) => (
+    <div
+      key={macro}
+      onClick={() =>
+        setModal({ open: true, mealIndex: idx, macro })
+      }
+      className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
+    >
+      <div className="text-xs text-gray-300">
+        {macro === "protein"
+          ? "بروتين"
+          : macro === "carb"
+          ? "كارب"
+          : "دهون"}
+      </div>
+
+      {meal[macro] ? (
+        <div className="text-yellow-300 text-sm font-bold mt-1">
+          {meal[macro].foodName}
+        </div>
+      ) : (
+        <div className="text-gray-600 text-xs mt-1">
+          اضغط للاختيار
+        </div>
+      )}
+    </div>
+  ))}
+</div>
             </div>
           );
         })}
