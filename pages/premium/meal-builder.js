@@ -215,8 +215,8 @@ export default function MealBuilder({ userId, userName, plan }) {
   
       {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
-        {Array.from({ length: mealCount }).map((_, idx) => {
-          const meal = meals[idx] || {};
+      {Array.from({ length: mealCount }).map((_, idx) => {
+  const meal = meals.find(m => m.index === idx) || {};
   
           return (
             <div
