@@ -1,4 +1,3 @@
-// pages/api/meal/today.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
@@ -12,7 +11,7 @@ export default async function handler(req, res) {
     const uid = Number(userId);
 
     // dayKey لليوم الحالي
-    const dayKeyMap = ["sun","mon","tue","wed","thu","fri","sat"];
+    const dayKeyMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const todayKey = dayKeyMap[new Date().getDay()];
 
     const day = await prisma.foodDay.findFirst({
@@ -23,7 +22,9 @@ export default async function handler(req, res) {
       include: {
         meals: {
           orderBy: { index: "asc" },
-          include: { items: true },
+          include: {
+            items: true,
+          },
         },
       },
     });
@@ -49,7 +50,6 @@ export default async function handler(req, res) {
 
       return {
         index: meal.index,
-        items: meal.items,
         ...totals,
       };
     });
