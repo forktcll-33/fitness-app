@@ -66,11 +66,14 @@ export default async function handler(req, res) {
 
     // إخراج منسق
     const formatted = meals.map((meal) => ({
-      index: meal.index,
-      protein: meal.items.find((i) => i.type === "protein") || null,
-      carbs: meal.items.find((i) => i.type === "carbs") || null,
-      fat: meal.items.find((i) => i.type === "fat") || null,
-    }));
+        index: meal.index,
+        protein: meal.items.find((i) => i.type === "protein") || null,
+        carbs:
+          meal.items.find((i) => i.type === "carbs") ||
+          meal.items.find((i) => i.type === "carb") ||
+          null,
+        fat: meal.items.find((i) => i.type === "fat") || null,
+      }));
 
     return res.status(200).json({ meals: formatted });
   } catch (e) {

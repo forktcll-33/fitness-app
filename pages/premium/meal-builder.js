@@ -156,7 +156,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     const payload = {
       userId,
       dayNumber: DAY_NUMBER_MAP[selectedDay],
-      mealIndex: modal.mealIndex,
+      mealIndex: modal.mealIndex + 1,
       food: {
         type: modal.macro,
         name: food.name,
@@ -226,7 +226,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
       {Array.from({ length: mealCount }).map((_, idx) => {
-  const meal = meals.find(m => m.index === idx) || {};
+  const meal = meals.find(m => m.index === idx + 1) || {};
   
           return (
             <div
