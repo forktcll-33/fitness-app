@@ -224,51 +224,65 @@ export default function MealBuilder({ userId, userName, plan }) {
       </div>
   
       {/* الوجبات */}
+      // pages/premium/meal-builder.js (الكتلة الجديدة التي يجب وضعها مكان القديمة)
+
+      {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
       {Array.from({ length: mealCount }).map((_, idx) => {
-  const meal = meals.find(m => m.index === idx) || {}; // 🌟 ملاحظة: البحث أصبح عن الفهرس (idx) مباشرة
-  
-          return (
-            <div
-              key={idx}
-              className="border border-yellow-500/30 rounded-xl p-3 bg-black/40"
-            >
-              <h2 className="text-sm font-bold text-yellow-300 mb-2">
-                الوجبة {idx + 1}
-              </h2>
-  
-              <div className="grid grid-cols-3 gap-3 text-center">
-  {["protein", "carbs", "fat"].map((macro) => (
-    <div
-      key={macro}
-      onClick={() =>
-        setModal({ open: true, mealIndex: idx, macro })
-      }
-      className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
-    >
-      <div className="text-xs text-gray-300">
-        {macro === "protein"
-          ? "بروتين"
-          : macro === "carbs"
-          ? "كارب"
-          : "دهون"}
-      </div>
-
-      {meal[macro] ? (
-        <div className="text-yellow-300 text-sm font-bold mt-1">
-          {meal[macro].foodName}
-        </div>
-      ) : (
-        <div className="text-gray-600 text-xs mt-1">
-          اضغط للاختيار
-        </div>
-      )}
-    </div>
-  ))}
-</div>
-            </div>
-          );
-        })}
+        const meal = meals.find(m => m.index === idx) || {}; 
+        
+        // 🌟 دالة مساعدة للبحث عن صنف محدد داخل قائمة الـ items
+        const getItem = (type) => meal.items?.find(item => item.type === type);
+    
+        return (
+          <div
+            key={idx}
+            className="border border-yellow-500/30 rounded-xl p-3 bg-black/40"
+          >
+            <h2 className="text-sm font-bold text-yellow-300 mb-2">
+              الوجبة {idx + 1}
+            </h2>
+    
+            <div className="grid grid-cols-3 gap-3 text-center">
+            {["protein", "carbs", "fat"].map((macro) => {
+              const item = getItem(macro); // جلب العنصر المحدد (بروتين أو كارب أو دهون)
+    
+              return (
+                <div
+                  key={macro}
+                  onClick={() =>
+                    // يجب أن يكون mealIndex هو الفهرس الحالي (idx)
+                    setModal({ open: true, mealIndex: idx, macro }) 
+                  }
+                  className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
+                >
+                  <div className="text-xs text-gray-300">
+                    {macro === "protein"
+                      ? "بروتين"
+                      : macro === "carbs"
+                      ? "كارب"
+                      : "دهون"}
+                  </div>
+    
+                  {item ? (
+                    <div className="text-yellow-300 text-sm font-bold mt-1">
+                      {item.foodName} {/* عرض اسم الطعام المحفوظ */}
+                      <div className="text-gray-400 text-[10px] mt-1">
+                          {item.amount} {item.unit} {/* عرض الكمية والوحدة */}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-600 text-xs mt-1">
+                      اضغط للاختيار
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          </div>
+        );
+      })}
       </div>
   
       {/* نص تحفيزي */}

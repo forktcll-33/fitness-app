@@ -441,10 +441,14 @@ function buildWeeklyPlanPro(basePlan) {
    ============================================ */
 export default function PremiumHome({ userName, basePlan }) {
   
+    // الكود الذي يجب وضعه بدلاً من الكود أعلاه
+  
     const [todayMeals, setTodayMeals] = useState([]);
     const [mealCount, setMealCount] = useState(0);
     
     useEffect(() => {
+      if (!userId) return; // 🌟 تأكيد وجود الـ userId قبل البدء
+
       async function loadToday() {
         try {
           const res = await fetch(`/api/meal/today?userId=${userId}`);
@@ -458,8 +462,10 @@ export default function PremiumHome({ userName, basePlan }) {
       }
     
       loadToday();
-    }, []);
+    }, [userId]); // 🌟 إضافة userId كـ Dependency
+
     const weeklyPlan = buildWeeklyPlanPro(basePlan);
+// ...
 
   const totalCals = basePlan?.calories || 0;
   const protein = basePlan?.protein || 0;
@@ -738,43 +744,64 @@ export default function PremiumHome({ userName, basePlan }) {
 
             {/* بدائل الوجبات */}
             {/* جدول التغذية اليومي */}
+            // الكود الذي يجب وضعه بدلاً من محتوى جدول التغذية اليومي
+
+            {/* جدول التغذية اليومي */}
             <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
-  <h2 className="text-xl font-bold text-white mb-2">
-    جدول التغذية اليومي (اليوم)
-  </h2>
-
-  <p className="text-xs text-gray-400 mb-4">
-    يتم تحديثه تلقائيًا حسب اختياراتك في بدائل الوجبات
-  </p>
-
-  {mealCount === 0 ? (
-    <p className="text-xs text-yellow-300">
-      لم يتم إعداد وجبات اليوم بعد
-    </p>
-  ) : (
-    <div className="space-y-3 text-sm">
-      {todayMeals.map((meal, i) => (
-        <div
-          key={i}
-          className="bg-black/40 border border-gray-700 rounded-xl px-4 py-3"
-        >
-          <div className="flex justify-between mb-1">
-            <span className="font-semibold text-gray-100">
-              الوجبة {i + 1}
-            </span>
-            <span className="text-yellow-300 font-bold">
-              {meal.kcals} كالوري
-            </span>
-          </div>
-
-          <div className="text-xs text-gray-300">
-            بروتين: {meal.protein} جم • كارب: {meal.carbs} جم • دهون: {meal.fat} جم
-          </div>
-        </div>
-      ))}
-    </div>   
-  )}
-</div>
+              <h2 className="text-xl font-bold text-white mb-2">
+                جدول التغذية اليومي (اليوم)
+              </h2>
+            
+              <p className="text-xs text-gray-400 mb-4">
+                يتم تحديثه تلقائيًا حسب اختياراتك في بدائل الوجبات
+              </p>
+            
+              {mealCount === 0 ? (
+                // 🌟 رسالة جديدة في حالة عدم وجود خطة سعرات
+                <p className="text-xs text-yellow-300">
+                  لم يتم حساب خطة سعرات بعد. (تحقق من صفحة الإعدادات).
+                </p>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  {todayMeals.map((meal, i) => (
+                    <div
+                      key={i}
+                      className="bg-black/40 border border-gray-700 rounded-xl px-4 py-3"
+                    >
+                      <div className="flex justify-between mb-1">
+                        <span className="font-semibold text-gray-100">
+                          الوجبة {i + 1}
+                        </span>
+                        <span className="text-yellow-300 font-bold">
+                          {meal.kcals} كالوري
+                        </span>
+                      </div>
+            
+                      <div className="text-xs text-gray-300">
+                        بروتين: {meal.protein} جم • كارب: {meal.carbs} جم • دهون: {meal.fat} جم
+                      </div>
+                      
+                      {/* 🌟 عرض تفاصيل الأصناف المحفوظة أو رسالة الخطة الافتراضية */}
+                      {meal.items && meal.items.length > 0 ? (
+                        <div className="text-[11px] text-gray-400 mt-2 space-y-1">
+                          {meal.items.map((item, index) => (
+                            <div key={index} className="flex justify-between">
+                              <span className="capitalize">{item.name}</span>
+                              <span className="text-yellow-200">{item.amount}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                         <p className="text-[11px] text-yellow-500/70 mt-2">
+                             * خطة افتراضية. اضغط على "بدائل الوجبات" للتخصيص.
+                        </p>
+                      )}
+            
+                    </div>
+                  ))}
+                </div>   
+              )}
+            </div>
     
           </section>
 
