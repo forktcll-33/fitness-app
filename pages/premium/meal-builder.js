@@ -1,3 +1,4 @@
+// pages/premium/meal-builder.js
 import { useState, useEffect } from "react";
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma";
@@ -124,7 +125,7 @@ export default function MealBuilder({ userId, userName, plan }) {
   }, [selectedDay, mealCount]);
 
   const loadMeals = async () => {
-    // نستخدم /api/meal/get-day الذي يفترض أنه يعتمد على نفس منطق الخطة الافتراضية
+    // جلب الوجبات المحفوظة لليوم المحدد
     const res = await fetch("/api/meal/get-day", {
       method: "POST",
       headers: {
@@ -151,7 +152,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       food.fat * 9;
   
     let factor = baseKcal / perBase;
-    factor = Math.max(0.4, Math.min(3, factor));
+    factor = Math.max(0.4, Math.min(3, factor)); 
   
     const payload = {
       userId,
@@ -159,9 +160,13 @@ export default function MealBuilder({ userId, userName, plan }) {
       mealIndex: modal.mealIndex, 
       food: {
         type: modal.macro,
-        name: food.name,
-        amount: Math.round(food.base * factor),
+        // 🌟 الإصلاح 1: نستخدم foodName بدلاً من name ليتوافق مع العرض في الصفحات
+        foodName: food.name, 
+        
+        // 🌟 الإصلاح 2: نستخدم Math.min لتقييد الكمية المحسوبة بحد أقصى (5 أضعاف الكمية الأساسية)
+        amount: Math.round(Math.min(food.base * factor, food.base * 5)), 
         unit: food.unit,
+        
         protein: Math.round(food.protein * factor),
         carbs: Math.round(food.carbs * factor),
         fat: Math.round(food.fat * factor),
@@ -182,7 +187,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       body: JSON.stringify(payload),
     });
 
-    // إذا نجح الحفظ، نقوم بإعادة تحميل الوجبات لتحديث العرض
+    // إذا نجح الحفظ، نقوم بإعادة تحميل الوجبات لتحديث العرض فوراً
     if (saveRes.ok) {
         setModal({ open: false, mealIndex: null, macro: null });
         await loadMeals(); 
@@ -233,6 +238,7 @@ export default function MealBuilder({ userId, userName, plan }) {
       {/* الوجبات */}
       <div className="mt-6 space-y-3 max-w-3xl mx-auto">
       {Array.from({ length: mealCount }).map((_, idx) => {
+        // البحث عن الوجبة المحفوظة أو إرجاع كائن فارغ
         const meal = meals.find(m => m.index === idx) || {}; 
         
         // دالة مساعدة للبحث عن صنف محدد داخل قائمة الـ items
@@ -249,7 +255,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     
             <div className="grid grid-cols-3 gap-3 text-center">
             {["protein", "carbs", "fat"].map((macro) => {
-              const item = getItem(macro); // جلب العنصر المحدد (بروتين أو كارب أو دهون)
+              const item = getItem(macro); 
     
               return (
                 <div
@@ -269,7 +275,7 @@ export default function MealBuilder({ userId, userName, plan }) {
     
                   {item ? (
                     <div className="text-yellow-300 text-sm font-bold mt-1">
-                      {item.name} {/* استخدام item.name */}
+                      {item.foodName} {/* ✅ استخدام foodName للعرض */}
                       <div className="text-gray-400 text-[10px] mt-1">
                           {item.amount} {item.unit} 
                       </div>
