@@ -1,3 +1,4 @@
+// pages/api/meal/today.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
@@ -8,20 +9,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "missing userId" });
     }
 
-    // تاريخ اليوم (YYYY-MM-DD)
-    const today = new Date().toISOString().slice(0, 10);
+    const uid = Number(userId);
+
+    // dayKey لليوم الحالي
+    const dayKeyMap = ["sun","mon","tue","wed","thu","fri","sat"];
+    const todayKey = dayKeyMap[new Date().getDay()];
 
     const day = await prisma.foodDay.findFirst({
       where: {
-        userId: Number(userId),
-        date: today,
+        userId: uid,
+        dayKey: todayKey,
       },
       include: {
         meals: {
           orderBy: { index: "asc" },
-          include: {
-            items: true,
-          },
+          include: { items: true },
         },
       },
     });
@@ -57,7 +59,7 @@ export default async function handler(req, res) {
       meals,
     });
   } catch (e) {
-    console.log("TODAY API ERROR:", e);
+    console.error("TODAY API ERROR:", e);
     return res.status(500).json({ error: "server error" });
   }
 }

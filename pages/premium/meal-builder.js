@@ -268,7 +268,20 @@ export default function MealBuilder({ userId, userName, plan }) {
         <br />
         يمكنك تغيير الأصناف في أي وقت — التعديلات تُحفظ تلقائيًا.
       </div>
-  
+      
+      {/* زر الحفظ */}
+<div className="mt-6 flex justify-center">
+  <button
+    onClick={() => {
+      alert("✅ تم حفظ جدولك الغذائي");
+      window.location.href = "/premium";
+    }}
+    className="px-8 py-3 rounded-xl bg-yellow-500 text-black font-bold hover:bg-yellow-400 transition"
+  >
+    💾 حفظ الجدول والعودة
+  </button>
+</div>
+
       {/* المودال */}
       {modal.open && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
