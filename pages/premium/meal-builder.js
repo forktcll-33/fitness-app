@@ -69,18 +69,30 @@ const DAYS = [
 const FOOD_LIBRARY = {
   protein: [
     { key: "chicken", name: "صدور دجاج", protein: 31, carbs: 0, fat: 3.6, base: 100, unit: "جم" },
-    { key: "egg", name: "بيض", protein: 6, carbs: 0.5, fat: 5, base: 50, unit: "حبة" },
+    { key: "beef", name: "لحم بقري قليل الدهن", protein: 26, carbs: 0, fat: 10, base: 100, unit: "جم" },
     { key: "fish", name: "سمك أبيض", protein: 22, carbs: 0, fat: 4, base: 100, unit: "جم" },
+    { key: "salmon", name: "سلمون", protein: 20, carbs: 0, fat: 13, base: 100, unit: "جم" },
     { key: "tuna", name: "تونة", protein: 24, carbs: 0, fat: 1, base: 100, unit: "جم" },
-    { key: "yogurt", name: "زبادي يوناني", protein: 17, carbs: 7, fat: 0, base: 170, unit: "جم" },
+    { key: "egg", name: "بيض", protein: 6, carbs: 0.5, fat: 5, base: 50, unit: "حبة" },
+    { key: "egg_white", name: "بياض البيض", protein: 3.5, carbs: 0.2, fat: 0, base: 33, unit: "حبة" },
+    { key: "greek_yogurt", name: "زبادي يوناني", protein: 17, carbs: 7, fat: 0, base: 170, unit: "جم" },
+    { key: "protein_powder", name: "بروتين واي", protein: 24, carbs: 3, fat: 2, base: 30, unit: "سكوب" },
+    { key: "lentils", name: "عدس", protein: 9, carbs: 20, fat: 0.4, base: 100, unit: "جم" },
   ],
+
   carbs: [
     { key: "white_rice", name: "رز أبيض", protein: 2.5, carbs: 28, fat: 0.3, base: 100, unit: "جم" },
     { key: "brown_rice", name: "رز بني", protein: 2.5, carbs: 23, fat: 1, base: 100, unit: "جم" },
-    { key: "potato", name: "بطاطس", protein: 2, carbs: 17, fat: 0.1, base: 100, unit: "جم" },
+    { key: "basmati", name: "رز بسمتي", protein: 2.7, carbs: 25, fat: 0.4, base: 100, unit: "جم" },
     { key: "oats", name: "شوفان", protein: 5, carbs: 27, fat: 3, base: 40, unit: "جم" },
-    { key: "bread", name: "توست", protein: 3, carbs: 14, fat: 1, base: 30, unit: "شريحة" },
+    { key: "potato", name: "بطاطس", protein: 2, carbs: 17, fat: 0.1, base: 100, unit: "جم" },
+    { key: "sweet_potato", name: "بطاطا حلوة", protein: 1.6, carbs: 20, fat: 0.1, base: 100, unit: "جم" },
+    { key: "bread", name: "توست بر", protein: 3, carbs: 14, fat: 1, base: 30, unit: "شريحة" },
+    { key: "pasta", name: "مكرونة قمح كامل", protein: 5, carbs: 30, fat: 1.5, base: 75, unit: "جم جاف" },
+    { key: "quinoa", name: "كينوا", protein: 4, carbs: 21, fat: 2, base: 100, unit: "جم" },
+    { key: "dates", name: "تمر", protein: 1, carbs: 18, fat: 0.1, base: 30, unit: "حبة" },
   ],
+
   fats: [
     { key: "olive_oil", name: "زيت زيتون", protein: 0, carbs: 0, fat: 5, base: 5, unit: "ملعقة صغيرة" },
     { key: "nuts", name: "مكسرات", protein: 2, carbs: 3, fat: 9, base: 10, unit: "جم" },
@@ -105,59 +117,71 @@ export default function MealBuilder({ userId, userName, plan }) {
   const loadMeals = async () => {
     const res = await fetch("/api/meal/get-day", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         userId,
-        dayKey: selectedDay,
+        date: selectedDate, // ✅ لازم اسمها date
         mealCount,
       }),
     });
-
+  
     const data = await res.json();
     setMeals(data.meals || []);
   };
 
   const chooseFood = async (food) => {
-    const idx = modal.mealIndex;
-    const macro = modal.macro;
-
+    if (modal.mealIndex === null) return;
+  
     const baseKcal = plan.calories / mealCount;
-    const perBase = food.protein * 4 + food.carbs * 4 + food.fat * 9;
-    let factor = Math.min(Math.max(baseKcal / perBase, 0.4), 3);
-
+    const perBase =
+      food.protein * 4 +
+      food.carbs * 4 +
+      food.fat * 9;
+  
+    let factor = baseKcal / perBase;
+    factor = Math.max(0.4, Math.min(3, factor));
+  
+    const payload = {
+      userId,
+      date: selectedDate,
+      mealIndex: modal.mealIndex,
+      food: {
+        type: modal.macro,
+        name: food.name,
+        amount: Math.round(food.base * factor),
+        unit: food.unit,
+        protein: Math.round(food.protein * factor),
+        carbs: Math.round(food.carbs * factor),
+        fat: Math.round(food.fat * factor),
+        kcals: Math.round(
+          food.protein * factor * 4 +
+          food.carbs * factor * 4 +
+          food.fat * factor * 9
+        ),
+      },
+    };
+  
     await fetch("/api/meal/save", {
       method: "POST",
-      body: JSON.stringify({
-        userId,
-        dayKey: selectedDay,
-        mealIndex: idx,
-        food: {
-          type: macro,
-          name: food.name,
-          amount: Math.round(food.base * factor),
-          unit: food.unit,
-          protein: Math.round(food.protein * factor),
-          carbs: Math.round(food.carbs * factor),
-          fat: Math.round(food.fat * factor),
-          kcals: Math.round(
-            food.protein * factor * 4 +
-              food.carbs * factor * 4 +
-              food.fat * factor * 9
-          ),
-        },
-      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
-
-    setModal({ open: false });
-    loadMeals();
+  
+    setModal({ open: false, mealIndex: null, macro: null });
+    await loadMeals(); // ⭐ هذا اللي كان ناقص
   };
 
   return (
     <div className="min-h-screen bg-[#020617] text-gray-100 p-6" dir="rtl">
       <a href="/premium" className="text-yellow-300 text-sm">← رجوع</a>
-
+  
       <h1 className="mt-4 text-2xl font-bold">بدائل الوجبات الاحترافية</h1>
       <p className="text-gray-400 text-sm">مرحباً {userName}</p>
-
+  
       {/* أيام الأسبوع */}
       <div className="mt-6 flex flex-wrap gap-2">
         {DAYS.map((d) => (
@@ -175,7 +199,7 @@ export default function MealBuilder({ userId, userName, plan }) {
           </button>
         ))}
       </div>
-
+  
       {/* عدد الوجبات */}
       <div className="mt-4">
         <select
@@ -188,57 +212,81 @@ export default function MealBuilder({ userId, userName, plan }) {
           <option value={4}>4 وجبات</option>
         </select>
       </div>
-
+  
       {/* الوجبات */}
-      <div className="mt-6 space-y-4">
-      {Array.from({ length: mealCount }).map((_, idx) => {
-  const meal = meals[idx] || {};
-  return (
-          <div key={idx} className="border border-yellow-500/40 rounded-xl p-4 bg-black/40">
-            <h2 className="font-bold text-yellow-300">الوجبة {idx + 1}</h2>
-
-            <div className="grid grid-cols-3 gap-3 mt-3 text-center">
-              {["protein", "carbs", "fat"].map((macro) => (
-                <div
-                  key={macro}
-                  onClick={() => setModal({ open: true, mealIndex: idx, macro })}
-                  className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700"
-                >
-                  <div className="text-xs text-gray-300">
-                    {macro === "protein" ? "بروتين" : macro === "carbs" ? "كارب" : "دهون"}
-                  </div>
-
-                  {meal[macro] ? (
-                    <div className="text-yellow-300 text-sm font-bold mt-1">
-                      {meal[macro].name}
+      <div className="mt-6 space-y-3 max-w-3xl mx-auto">
+        {Array.from({ length: mealCount }).map((_, idx) => {
+          const meal = meals[idx] || {};
+  
+          return (
+            <div
+              key={idx}
+              className="border border-yellow-500/30 rounded-xl p-3 bg-black/40"
+            >
+              <h2 className="text-sm font-bold text-yellow-300 mb-2">
+                الوجبة {idx + 1}
+              </h2>
+  
+              <div className="grid grid-cols-3 gap-3 text-center">
+                {["protein", "carbs", "fat"].map((macro) => (
+                  <div
+                    key={macro}
+                    onClick={() =>
+                      setModal({ open: true, mealIndex: idx, macro })
+                    }
+                    className="cursor-pointer bg-black/50 p-3 rounded-lg border border-gray-700 hover:bg-black/70"
+                  >
+                    <div className="text-xs text-gray-300">
+                      {macro === "protein"
+                        ? "بروتين"
+                        : macro === "carbs"
+                        ? "كارب"
+                        : "دهون"}
                     </div>
-                  ) : (
-                    <div className="text-gray-600 text-xs mt-1">اضغط للاختيار</div>
-                  )}
-                </div>
-              ))}
+  
+                    {meal[macro] ? (
+                      <div className="text-yellow-300 text-sm font-bold mt-1">
+                        {meal[macro].name}
+                      </div>
+                    ) : (
+                      <div className="text-gray-600 text-xs mt-1">
+                        اضغط للاختيار
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>
-
+  
+      {/* نص تحفيزي */}
+      <div className="mt-6 text-center text-sm text-gray-400 max-w-xl mx-auto">
+        💡 <span className="text-yellow-300 font-semibold">نصيحة:</span>
+        حاول توزيع البروتين بالتساوي بين الوجبات لتحسين الشبع وبناء العضلات.
+        <br />
+        يمكنك تغيير الأصناف في أي وقت — التعديلات تُحفظ تلقائيًا.
+      </div>
+  
       {/* المودال */}
       {modal.open && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-[#0f172a] p-6 rounded-xl w-96 border border-yellow-500/30">
-            <h3 className="text-lg font-bold text-yellow-300 mb-3">اختر عنصر</h3>
-
+            <h3 className="text-lg font-bold text-yellow-300 mb-3">
+              اختر عنصر
+            </h3>
+  
             {FOOD_LIBRARY[modal.macro].map((item) => (
               <div
                 key={item.key}
                 onClick={() => chooseFood(item)}
-                className="p-3 rounded-lg bg-black/40 border border-gray-700 mb-2 cursor-pointer"
+                className="p-3 rounded-lg bg-black/40 border border-gray-700 mb-2 cursor-pointer hover:bg-black/60"
               >
                 {item.name}
               </div>
             ))}
-
+  
             <button
               onClick={() => setModal({ open: false })}
               className="mt-4 w-full py-2 bg-red-600 rounded-lg"
@@ -247,7 +295,7 @@ export default function MealBuilder({ userId, userName, plan }) {
             </button>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
+         )}
+         </div>
+       );
+       }
