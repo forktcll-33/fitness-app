@@ -1,3 +1,5 @@
+// pages/api/meal/save.js
+
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
@@ -10,6 +12,7 @@ export default async function handler(req, res) {
 
     const uid = Number(userId);
 
+    // 1) جلب اليوم
     let day = await prisma.foodDay.findFirst({
       where: { userId: uid, dayKey },
     });
@@ -20,6 +23,7 @@ export default async function handler(req, res) {
       });
     }
 
+    // 2) جلب الوجبة
     let meal = await prisma.foodDayMeal.findFirst({
       where: { foodDayId: day.id, index: mealIndex },
     });
@@ -33,6 +37,7 @@ export default async function handler(req, res) {
       });
     }
 
+    // 3) حذف العنصر السابق من نفس النوع
     await prisma.foodDayMealItem.deleteMany({
       where: {
         foodDayMealId: meal.id,
@@ -40,6 +45,7 @@ export default async function handler(req, res) {
       },
     });
 
+    // 4) حفظ العنصر الجديد
     await prisma.foodDayMealItem.create({
       data: {
         foodDayMealId: meal.id,
