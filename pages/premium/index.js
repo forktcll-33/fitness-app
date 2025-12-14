@@ -439,7 +439,7 @@ function buildWeeklyPlanPro(basePlan) {
 /* ============================================
    ============= صفحة Premium =================
    ============================================ */
-export default function PremiumHome({ userName, basePlan }) {
+   export default function PremiumHome({ userId, userName, basePlan }) { // 🌟 تم إضافة userId
   
     // الكود الذي يجب وضعه بدلاً من الكود أعلاه
   
