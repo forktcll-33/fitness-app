@@ -1,62 +1,58 @@
-// pages/api/meal/save.js
 import prisma from "../../../lib/prisma";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { userId, dayNumber, mealIndex, food } = req.body;
-
-    if (!userId || !dayNumber || mealIndex === undefined || !food) {
+    const { userId, dayKey, mealIndex, food } = req.body;
+    if (!userId || !dayKey || mealIndex === undefined || !food)
       return res.status(400).json({ error: "missing data" });
-    }
 
     const uid = Number(userId);
 
+    const DAY_NUMBER_MAP = {
+      sat: 6, sun: 7, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5,
+    };
+    const dayNumber = DAY_NUMBER_MAP[dayKey];
+
+    // اليوم
     let day = await prisma.foodDay.findFirst({
-      where: {
-        userId: uid,
-        dayNumber: Number(dayNumber),
-      },
+      where: { userId: uid, dayNumber },
     });
 
     if (!day) {
       day = await prisma.foodDay.create({
-        data: {
-          userId: uid,
-          dayNumber: Number(dayNumber),
-          date: new Date(),
-        },
+        data: { userId: uid, dayNumber },
       });
     }
 
-    let meal = await prisma.foodDayMeal.findFirst({
+    // الوجبة
+    let meal = await prisma.foodMeal.findFirst({
       where: { foodDayId: day.id, index: mealIndex },
     });
 
     if (!meal) {
-      meal = await prisma.foodDayMeal.create({
-        data: {
-          foodDayId: day.id,
-          index: mealIndex,
-        },
+      meal = await prisma.foodMeal.create({
+        data: { foodDayId: day.id, index: mealIndex },
       });
     }
 
-    await prisma.foodDayMealItem.deleteMany({
+    // حذف القديم من نفس النوع
+    await prisma.foodMealItem.deleteMany({
       where: {
-        foodDayMealId: meal.id,
+        mealId: meal.id,   // ✅ الصحيح
         type: food.type,
       },
     });
 
-    await prisma.foodDayMealItem.create({
+    // إضافة الجديد
+    await prisma.foodMealItem.create({
       data: {
-        foodDayMealId: meal.id,
+        mealId: meal.id,   // ✅ الصحيح
         type: food.type,
-        name: food.name,
-        amount: food.amount,
-        unit: food.unit,
+        foodKey: food.name,      // اختياري
+        foodName: food.name,
+        amount: `${food.amount} ${food.unit}`,
         protein: food.protein,
         carbs: food.carbs,
         fat: food.fat,
