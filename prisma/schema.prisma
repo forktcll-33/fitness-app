@@ -147,16 +147,18 @@ model FoodDay {
 }
 
 model FoodMeal {
-  id        Int          @id @default(autoincrement())
+  id        Int @id @default(autoincrement())
   foodDayId Int
-  index     Int          // 1 أو 2 أو 3 أو 4
+  index     Int
 
   items     FoodMealItem[]
 
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  FoodDay   FoodDay       @relation(fields: [foodDayId], references: [id])
+  FoodDay   FoodDay @relation(fields: [foodDayId], references: [id])
+
+  @@unique([foodDayId, index])
 }
 model FoodMealItem {
   id        Int     @id @default(autoincrement())
