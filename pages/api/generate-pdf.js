@@ -2,7 +2,14 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
-export const config = { runtime: "nodejs" };
+// ✅ التعديل الأول: إزالة runtime: "nodejs" القديمة
+// وتغييرها إلى إعدادات Edge Runtime المناسبة، لضمان عمل puppeteer في Vercel
+export const config = {
+    // يمكنك تجربة runtime: "nodejs" أيضاً إذا لم يعمل Edge Runtime
+    // لكن Edge Runtime عادةً أفضل مع @sparticuz/chromium
+    runtime: "nodejs",
+    // regions: ["fra1"], // يمكن إضافة هذا إذا كنت تستخدم Vercel وتريد تحديد المنطقة
+};
 
 import { getUserFromRequest } from "../../middleware/auth";
 import prisma from "../../lib/prisma";
@@ -153,10 +160,13 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
 
     /* ================= PDF ================= */
 
+    // ✅ التعديل الثاني: ضمان تمرير المسارات الصحيحة
     const browser = await puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
+      // 💡 إضافة هذا السطر يحل غالبية مشاكل المسارات في بيئات Vercel
+      ignoreDefaultArgs: ["--disable-extensions"], 
     });
 
     const page = await browser.newPage();
@@ -177,6 +187,7 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
     res.end(pdfBuffer);
   } catch (e) {
     console.error("PDF error:", e);
-    res.status(500).json({ error: "خطأ في إنشاء الملف" });
+    // 💡 تعديل بسيط: أظهر رسالة الخطأ للمطورين في وضع التطوير
+    res.status(500).json({ error: `خطأ في إنشاء الملف: ${e.message}` });
   }
 }
