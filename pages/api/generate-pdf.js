@@ -1,6 +1,7 @@
 // pages/api/generate-pdf.js
 import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+// 🛑 استخدام المكتبة البديلة
+import chrome from "chrome-aws-lambda-v2";
 
 // ✅ العودة إلى nodejs لحل مشكلة التضارب
 export const config = {
@@ -9,14 +10,6 @@ export const config = {
     maxDuration: 60, 
     // memory: 512, // يفضل إضافته إذا كنت تستطيع التحكم بذاكرة Lambda
 };
-
-// ... (بقية الكود كما هو تماماً) ...
-// ... (خيارات launch الصارمة تبقى كما هي) ...
-
-// ...
-    // يجب زيادة حجم الـ Lambda Function إلى 512MB أو 1024MB
-    // memory: 512, 
-
 
 import { getUserFromRequest } from "../../middleware/auth";
 import prisma from "../../lib/prisma";
@@ -103,7 +96,7 @@ function renderMealValue(v) {
 /* ================= handler ================= */
 
 export default async function handler(req, res) {
-  let browser = null; // تعريف المتصفح خارج try/catch
+  let browser = null; 
   try {
     const userJwt = getUserFromRequest(req);
     if (!userJwt) return res.status(401).json({ error: "غير مصرح" });
@@ -168,20 +161,12 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
 
     /* ================= PDF ================= */
 
-    // ✅ التعديل الثاني: إضافة خيارات Serverless و Server-side Renderer
+    // 🛑 استخدام إعدادات chrome-aws-lambda-v2
     browser = await puppeteer.launch({
-      // ✅ دمج جميع الـ args الأساسية مع خيارات serverless
-      args: [
-          ...chromium.args, 
-          "--hide-scrollbars", 
-          "--disable-web-security",
-          // ✅ هذا الخيار مهم جداً في بيئات Lambda/Vercel
-          '--no-sandbox', 
-      ], 
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      // ✅ إضافة defaultViewport و ignoreDefaultArgs لحل مشكلة التضمين والمسار
-      defaultViewport: chromium.defaultViewport, 
+      args: [...chrome.args, "--hide-scrollbars", "--disable-web-security"],
+      executablePath: await chrome.executablePath, // ✅ استخدام executablePath الخاص بالمكتبة البديلة
+      headless: chrome.headless,
+      defaultViewport: chrome.defaultViewport,
       ignoreDefaultArgs: ["--disable-extensions"], 
     });
 
