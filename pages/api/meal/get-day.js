@@ -79,16 +79,21 @@ export default async function handler(req, res) {
       include: { items: true },
     });
 
-    // 6) إخراج منسق للفرونت
+    // 6) إخراج منسق للفرونت (يجب أن يعيد جميع تفاصيل الصنف المحفوظة)
     const formatted = meals
-      // ⭐ تم إزالة الفلترة الزائدة هنا، لأن الوجبات الزائدة حذفت بالفعل في الخطوة 4.
+      .filter((m) => m.index < desired) // فلترة الوجبات الزائدة (التي تم حذفها للتو)
       .map((meal) => ({
         index: meal.index,
-        protein: meal.items.find((i) => i.type === "protein") || null,
-        carbs: meal.items.find(
-          (i) => i.type === "carbs" || i.type === "carb"
-        ) || null,
-        fat: meal.items.find((i) => i.type === "fat") || null,
+        items: meal.items.map(item => ({
+            type: item.type,
+            foodName: item.foodName,
+            amount: item.amount, 
+            unit: item.unit,     
+            protein: item.protein,
+            carbs: item.carbs,
+            fat: item.fat,
+            kcals: item.kcals,
+        })),
       }));
 
     return res.status(200).json({ meals: formatted });
