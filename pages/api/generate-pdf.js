@@ -4,6 +4,12 @@ import chromium from "@sparticuz/chromium-min";
 
 export const config = { runtime: "nodejs" };
 
+const browser = await puppeteer.launch({
+  args: chromium.args,
+  executablePath: await chromium.executablePath(),
+  headless: chromium.headless,
+});
+
 import { getUserFromRequest } from "../../middleware/auth";
 import prisma from "../../lib/prisma";
 
@@ -252,13 +258,7 @@ export default async function handler(req, res) {
       </body>
       </html>
     `;
-
-    // Sparticuz Chromium (Vercel-compatible)
-    const browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });

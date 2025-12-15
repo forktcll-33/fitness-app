@@ -177,6 +177,7 @@ function buildWeeklyPlanPro(basePlan) {
 
 /* ======================================================
    2) Meal Swap Pro — بدائل وجبات احترافية (B)
+   ** تم الإبقاء على هذه الدالة بالكامل كما أرسلتها **
    ====================================================== */
    function MealSwapPro({ basePlan }) {
     const [mealType, setMealType] = useState("breakfast");
@@ -436,18 +437,21 @@ function buildWeeklyPlanPro(basePlan) {
     );
   }
 
+
 /* ============================================
    ============= صفحة Premium =================
    ============================================ */
-   export default function PremiumHome({ userId, userName, basePlan }) { // 🌟 تم إضافة userId
+   export default function PremiumHome({ userId, userName, basePlan }) { 
   
-    // الكود الذي يجب وضعه بدلاً من الكود أعلاه
-  
+    // ===============================================
+    // ✅ الجزء الذي تم تعديله للربط ببيانات الوجبات المخصصة
+    // ===============================================
     const [todayMeals, setTodayMeals] = useState([]);
-    const [mealCount, setMealCount] = useState(0);
+    const [loadingMeals, setLoadingMeals] = useState(true); // إضافة حالة التحميل
+    const [mealCount, setMealCount] = useState(0); // تم الإبقاء على mealCount
     
     useEffect(() => {
-      if (!userId) return; // 🌟 تأكيد وجود الـ userId قبل البدء
+      if (!userId) return; 
 
       async function loadToday() {
         try {
@@ -455,15 +459,18 @@ function buildWeeklyPlanPro(basePlan) {
           const data = await res.json();
     
           setTodayMeals(data.meals || []);
-          setMealCount(data.mealCount || 0);
+          setMealCount(data.meals?.length || 0); // الاعتماد على عدد الوجبات الراجعة
         } catch (e) {
           console.log(e);
+        } finally {
+           setLoadingMeals(false); // إيقاف التحميل سواء نجح أم فشل
         }
       }
     
       loadToday();
-    }, [userId]); // 🌟 إضافة userId كـ Dependency
-
+    }, [userId]); 
+    // ===============================================
+    
     const weeklyPlan = buildWeeklyPlanPro(basePlan);
 // ...
 
@@ -677,7 +684,7 @@ function buildWeeklyPlanPro(basePlan) {
             </div>
           </section>
 
-          {/* =================== الخطة الأسبوعية + البدائل =================== */}
+          {/* =================== الخطة الأسبوعية + جدول التغذية الفعلي =================== */}
           <section className="grid lg:grid-cols-3 gap-6">
 
             {/* الخطة الأسبوعية */}
@@ -696,7 +703,7 @@ function buildWeeklyPlanPro(basePlan) {
 
               {!basePlan?.calories ? (
                 <div className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-4 text-xs text-yellow-100">
-                  لا توجد خطة غذائية محسوبة بعد. ارجع للصفحة الرئيسية.
+                  لا توجد خطة غذائية محسوبة بعد. ارجع للصفحة الرئيسية ثم عد مجددًا.
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
@@ -742,11 +749,7 @@ function buildWeeklyPlanPro(basePlan) {
               )}
             </div>
 
-            {/* بدائل الوجبات */}
-            {/* جدول التغذية اليومي */}
-            
-
-            {/* جدول التغذية اليومي */}
+            {/* جدول التغذية اليومي (المهم) */}
             <div className="bg-[#020617] border border-yellow-500/30 rounded-2xl p-5 shadow-lg shadow-yellow-500/10">
               <h2 className="text-xl font-bold text-white mb-2">
                 جدول التغذية اليومي (اليوم)
@@ -756,8 +759,11 @@ function buildWeeklyPlanPro(basePlan) {
                 يتم تحديثه تلقائيًا حسب اختياراتك في بدائل الوجبات
               </p>
             
-              {mealCount === 0 ? (
-                // 🌟 رسالة جديدة في حالة عدم وجود خطة سعرات
+              {loadingMeals ? (
+                   // 🔴 إضافة حالة التحميل
+                   <div className="text-center py-10 text-gray-500">جاري تحميل جدولك المخصص...</div>
+              ) : !totalCals ? (
+                // 🌟 رسالة في حالة عدم وجود خطة سعرات
                 <p className="text-xs text-yellow-300">
                   لم يتم حساب خطة سعرات بعد. (تحقق من صفحة الإعدادات).
                 </p>
@@ -781,7 +787,7 @@ function buildWeeklyPlanPro(basePlan) {
                         بروتين: {meal.protein} جم • كارب: {meal.carbs} جم • دهون: {meal.fat} جم
                       </div>
                       
-                      {/* 🌟 عرض تفاصيل الأصناف المحفوظة أو رسالة الخطة الافتراضية */}
+                      {/* ✅ عرض تفاصيل الأصناف المحفوظة أو رسالة الخطة الافتراضية */}
                       {meal.items && meal.items.length > 0 ? (
                         <div className="text-[11px] text-gray-400 mt-2 space-y-1">
                           {meal.items.map((item, index) => (
