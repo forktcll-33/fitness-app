@@ -79,16 +79,16 @@ export default async function handler(req, res) {
       include: { items: true },
     });
 
-    // 6) إخراج منسق للفرونت (يجب أن يعيد جميع تفاصيل الصنف المحفوظة)
+    // 6) إخراج منسق للفرونت (إزالة unit من الإرجاع)
     const formatted = meals
-      .filter((m) => m.index < desired) // فلترة الوجبات الزائدة (التي تم حذفها للتو)
+      .filter((m) => m.index < desired) 
       .map((meal) => ({
         index: meal.index,
         items: meal.items.map(item => ({
             type: item.type,
             foodName: item.foodName,
-            amount: item.amount, 
-            unit: item.unit,     
+            amount: item.amount, // يحتوي الآن على القيمة والوحدة مدمجة
+            // ❌ إزالة unit: item.unit
             protein: item.protein,
             carbs: item.carbs,
             fat: item.fat,

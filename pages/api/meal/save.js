@@ -65,12 +65,10 @@ export default async function handler(req, res) {
         foodKey: food.foodKey,
         foodName: food.foodName,
         
-        // ✅ الإصلاح: ندمج الكمية والوحدة في حقل amount (لأنه STRING في DB)
-        // هذا يتوافق مع ما كانت تريده Prisma
+        // ✅ ندمج الكمية والوحدة في حقل amount (STRING)
         amount: `${food.amount} ${food.unit}`, 
         
-        // 🔑 الحفاظ على unit كحقل منفصل إذا كنت تستخدمه في مكان آخر
-        unit: food.unit, 
+        // ❌ حذف حقل unit!
         
         protein: Number(food.protein) || 0,
         carbs: Number(food.carbs) || 0,
