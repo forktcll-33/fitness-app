@@ -1,14 +1,14 @@
 // pages/api/generate-pdf.js
 import puppeteer from "puppeteer-core";
-// 🛑 استخدام المكتبة البديلة
-import chrome from "chrome-aws-lambda-v2";
+import chromium from "@sparticuz/chromium";
+import { join } from 'path'; // 🛑 جديد: استيراد path للانضمام إلى المسار
 
 // ✅ العودة إلى nodejs لحل مشكلة التضارب
 export const config = {
     runtime: "nodejs", 
     // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout)
     maxDuration: 60, 
-    // memory: 512, // يفضل إضافته إذا كنت تستطيع التحكم بذاكرة Lambda
+    // memory: 512, 
 };
 
 import { getUserFromRequest } from "../../middleware/auth";
@@ -161,12 +161,21 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
 
     /* ================= PDF ================= */
 
-    // 🛑 استخدام إعدادات chrome-aws-lambda-v2
+    // 🛑 تحديد المسار يدوياً كبديل:
+    const executablePath = await chromium.executablePath;
+    const manualPath = join(process.cwd(), 'node_modules', '@sparticuz', 'chromium', 'bin', 'chromium');
+    
     browser = await puppeteer.launch({
-      args: [...chrome.args, "--hide-scrollbars", "--disable-web-security"],
-      executablePath: await chrome.executablePath, // ✅ استخدام executablePath الخاص بالمكتبة البديلة
-      headless: chrome.headless,
-      defaultViewport: chrome.defaultViewport,
+      args: [
+          ...chromium.args, 
+          '--no-sandbox', 
+          "--hide-scrollbars", 
+          "--disable-web-security",
+      ], 
+      // ✅ استخدام المسار اليدوي إذا فشل المسار التلقائي
+      executablePath: executablePath || manualPath,
+      headless: chromium.headless,
+      defaultViewport: chromium.defaultViewport, 
       ignoreDefaultArgs: ["--disable-extensions"], 
     });
 
