@@ -277,7 +277,7 @@ export default function MealBuilder({ userId, userName, plan }) {
                     <div className="text-yellow-300 text-sm font-bold mt-1">
                       {item.foodName} 
                       <div className="text-gray-400 text-[10px] mt-1">
-                          {item.amount} {item.unit} 
+                          {item.amount}
                       </div>
                     </div>
                   ) : (

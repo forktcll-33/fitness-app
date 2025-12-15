@@ -1,5 +1,5 @@
 // pages/api/generate-pdf.js
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
 import puppeteer from "puppeteer-core";
 
 export const config = { runtime: "nodejs" };

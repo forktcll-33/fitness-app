@@ -61,13 +61,16 @@ export default async function handler(req, res) {
     await prisma.foodMealItem.create({
       data: {
         mealId: meal.id,
-        type: food.type,              // protein | carbs | fat
-        foodKey: food.foodKey,        // 🔑 الإصلاح الأول: foodKey
-        foodName: food.foodName,      
+        type: food.type,
+        foodKey: food.foodKey,
+        foodName: food.foodName,
         
-        // 🚨 الإصلاح الحاسم الثاني: تخزين الكمية كرقم والوحدة في حقل منفصل
-        amount: Number(food.amount) || 0,
-        unit: food.unit,
+        // ✅ الإصلاح: ندمج الكمية والوحدة في حقل amount (لأنه STRING في DB)
+        // هذا يتوافق مع ما كانت تريده Prisma
+        amount: `${food.amount} ${food.unit}`, 
+        
+        // 🔑 الحفاظ على unit كحقل منفصل إذا كنت تستخدمه في مكان آخر
+        unit: food.unit, 
         
         protein: Number(food.protein) || 0,
         carbs: Number(food.carbs) || 0,
