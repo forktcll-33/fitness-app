@@ -6,8 +6,10 @@ import chromium from "@sparticuz/chromium";
 export const config = {
     // ⚠️ الإبقاء على nodejs هو الأفضل إذا كنت تستخدم Next.js
     runtime: "nodejs",
-    // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout) أثناء إنشاء الـ PDF
+    // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout)
     maxDuration: 60, 
+    // يجب زيادة حجم الـ Lambda Function إلى 512MB أو 1024MB
+    // memory: 512, 
 };
 
 import { getUserFromRequest } from "../../middleware/auth";
@@ -95,6 +97,7 @@ function renderMealValue(v) {
 /* ================= handler ================= */
 
 export default async function handler(req, res) {
+  let browser = null; // تعريف المتصفح خارج try/catch
   try {
     const userJwt = getUserFromRequest(req);
     if (!userJwt) return res.status(401).json({ error: "غير مصرح" });
@@ -160,9 +163,15 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
     /* ================= PDF ================= */
 
     // ✅ التعديل الثاني: إضافة خيارات Serverless و Server-side Renderer
-    const browser = await puppeteer.launch({
-      // ✅ دمج جميع الـ args الأساسية مع أي خيارات أخرى
-      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"], 
+    browser = await puppeteer.launch({
+      // ✅ دمج جميع الـ args الأساسية مع خيارات serverless
+      args: [
+          ...chromium.args, 
+          "--hide-scrollbars", 
+          "--disable-web-security",
+          // ✅ هذا الخيار مهم جداً في بيئات Lambda/Vercel
+          '--no-sandbox', 
+      ], 
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
       // ✅ إضافة defaultViewport و ignoreDefaultArgs لحل مشكلة التضمين والمسار
@@ -188,6 +197,10 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
     res.end(pdfBuffer);
   } catch (e) {
     console.error("PDF error:", e);
+    // 💡 إغلاق المتصفح إذا فشل في مرحلة مبكرة
+    if (browser !== null) {
+      await browser.close();
+    }
     // 💡 إرجاع رسالة الخطأ لتسهيل تتبع المشكلة
     res.status(500).json({ error: `خطأ في إنشاء الملف: ${e.message}` });
   }
