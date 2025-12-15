@@ -1,7 +1,8 @@
 // pages/api/generate-pdf.js
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
-import { join } from 'path'; // 🛑 جديد: استيراد path للانضمام إلى المسار
+// 🛑 لم نعد نستخدم join من path، لكن يفضل تركه إذا كان مستخدماً في مكان آخر في الكود
+// import { join } from 'path'; 
 
 // ✅ العودة إلى nodejs لحل مشكلة التضارب
 export const config = {
@@ -161,9 +162,8 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
 
     /* ================= PDF ================= */
 
-    // 🛑 تحديد المسار يدوياً كبديل:
-    const executablePath = await chromium.executablePath;
-    const manualPath = join(process.cwd(), 'node_modules', '@sparticuz', 'chromium', 'bin', 'chromium');
+    // 🛑 التعديل النهائي: الاعتماد على المسار التلقائي للمكتبة مع إجبار التنفيذ المحلي
+    const finalExecutablePath = await chromium.executablePath;
     
     browser = await puppeteer.launch({
       args: [
@@ -172,11 +172,11 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
           "--hide-scrollbars", 
           "--disable-web-security",
       ], 
-      // ✅ استخدام المسار اليدوي إذا فشل المسار التلقائي
-      executablePath: executablePath || manualPath,
+      executablePath: finalExecutablePath, // ✅ المسار التلقائي
       headless: chromium.headless,
       defaultViewport: chromium.defaultViewport, 
       ignoreDefaultArgs: ["--disable-extensions"], 
+      preferLocalExecution: true, // 🛑 الخيار الحاسم لفك الضغط في /tmp
     });
 
     const page = await browser.newPage();
