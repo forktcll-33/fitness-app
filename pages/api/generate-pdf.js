@@ -2,15 +2,21 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
-// ✅ التعديل الأول: ضبط إعدادات الـ Lambda Function
+// ✅ العودة إلى nodejs لحل مشكلة التضارب
 export const config = {
-  // 🛑 التعديل الحاسم: غيّر nodejs إلى edge
-  runtime: "edge",
+    runtime: "nodejs", 
     // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout)
     maxDuration: 60, 
+    // memory: 512, // يفضل إضافته إذا كنت تستطيع التحكم بذاكرة Lambda
+};
+
+// ... (بقية الكود كما هو تماماً) ...
+// ... (خيارات launch الصارمة تبقى كما هي) ...
+
+// ...
     // يجب زيادة حجم الـ Lambda Function إلى 512MB أو 1024MB
     // memory: 512, 
-};
+
 
 import { getUserFromRequest } from "../../middleware/auth";
 import prisma from "../../lib/prisma";
