@@ -4,8 +4,8 @@ import chromium from "@sparticuz/chromium";
 
 // ✅ التعديل الأول: ضبط إعدادات الـ Lambda Function
 export const config = {
-    // ⚠️ الإبقاء على nodejs هو الأفضل إذا كنت تستخدم Next.js
-    runtime: "nodejs",
+  // 🛑 التعديل الحاسم: غيّر nodejs إلى edge
+  runtime: "edge",
     // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout)
     maxDuration: 60, 
     // يجب زيادة حجم الـ Lambda Function إلى 512MB أو 1024MB
