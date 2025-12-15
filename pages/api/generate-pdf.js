@@ -1,5 +1,6 @@
 // pages/api/generate-pdf.js
-import { chromium } from "playwright";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 
 export const config = { runtime: "nodejs" };
 
@@ -253,10 +254,11 @@ export default async function handler(req, res) {
     `;
 
     // Sparticuz Chromium (Vercel-compatible)
-    const browser = await chromium.launch({
-      headless: true,
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
-
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
