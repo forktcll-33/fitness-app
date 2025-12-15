@@ -2,13 +2,12 @@
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
-// ✅ التعديل الأول: إزالة runtime: "nodejs" القديمة
-// وتغييرها إلى إعدادات Edge Runtime المناسبة، لضمان عمل puppeteer في Vercel
+// ✅ التعديل الأول: ضبط إعدادات الـ Lambda Function
 export const config = {
-    // يمكنك تجربة runtime: "nodejs" أيضاً إذا لم يعمل Edge Runtime
-    // لكن Edge Runtime عادةً أفضل مع @sparticuz/chromium
+    // ⚠️ الإبقاء على nodejs هو الأفضل إذا كنت تستخدم Next.js
     runtime: "nodejs",
-    // regions: ["fra1"], // يمكن إضافة هذا إذا كنت تستخدم Vercel وتريد تحديد المنطقة
+    // ✅ زيادة المدة القصوى لمنع انتهاء المهلة (Timeout) أثناء إنشاء الـ PDF
+    maxDuration: 60, 
 };
 
 import { getUserFromRequest } from "../../middleware/auth";
@@ -160,12 +159,14 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
 
     /* ================= PDF ================= */
 
-    // ✅ التعديل الثاني: ضمان تمرير المسارات الصحيحة
+    // ✅ التعديل الثاني: إضافة خيارات Serverless و Server-side Renderer
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      // ✅ دمج جميع الـ args الأساسية مع أي خيارات أخرى
+      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"], 
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
-      // 💡 إضافة هذا السطر يحل غالبية مشاكل المسارات في بيئات Vercel
+      // ✅ إضافة defaultViewport و ignoreDefaultArgs لحل مشكلة التضمين والمسار
+      defaultViewport: chromium.defaultViewport, 
       ignoreDefaultArgs: ["--disable-extensions"], 
     });
 
@@ -187,7 +188,7 @@ body { font-family:'Noto Naskh Arabic', Arial; background:#f6f7f8; padding:24px;
     res.end(pdfBuffer);
   } catch (e) {
     console.error("PDF error:", e);
-    // 💡 تعديل بسيط: أظهر رسالة الخطأ للمطورين في وضع التطوير
+    // 💡 إرجاع رسالة الخطأ لتسهيل تتبع المشكلة
     res.status(500).json({ error: `خطأ في إنشاء الملف: ${e.message}` });
   }
 }
